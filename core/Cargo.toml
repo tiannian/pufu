@@ -1,0 +1,8 @@
+[package]
+name = "pufu-core"
+version = "0.1.0"
+edition = "2021"
+description = "Core library for pufu"
+
+[dependencies]
+pufu-macros = { path = "../pufu-macros" }
