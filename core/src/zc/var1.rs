@@ -13,6 +13,10 @@ impl ZcVar1 for String {
     const ELEM_SIZE: Option<usize> = None;
 }
 
+impl ZcVar1 for &str {
+    const ELEM_SIZE: Option<usize> = None;
+}
+
 // Fixed-element segments: Vec<T> where T is fixed-size AND not u8 (to avoid overlap with Vec<u8>).
 // This covers Vec<u16>, Vec<u64>, Vec<i32>, Vec<[u8;32]>, Vec<[u64;4]>, Vec<MyHash>, etc.
 impl<T: ZcFixed + NotU8> ZcVar1 for Vec<T> {
