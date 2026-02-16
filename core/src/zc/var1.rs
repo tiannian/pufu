@@ -18,3 +18,19 @@ impl ZcVar1 for String {
 impl<T: ZcFixed + NotU8> ZcVar1 for Vec<T> {
     const ELEM_SIZE: Option<usize> = Some(T::SIZE);
 }
+
+// Slice views: bytes-like
+impl ZcVar1 for &[u8] {
+    const ELEM_SIZE: Option<usize> = None;
+}
+impl ZcVar1 for &mut [u8] {
+    const ELEM_SIZE: Option<usize> = None;
+}
+
+// Slice views: fixed-element segments
+impl<T: ZcFixed + NotU8> ZcVar1 for &[T] {
+    const ELEM_SIZE: Option<usize> = Some(T::SIZE);
+}
+impl<T: ZcFixed + NotU8> ZcVar1 for &mut [T] {
+    const ELEM_SIZE: Option<usize> = Some(T::SIZE);
+}
