@@ -1,8 +1,7 @@
 //! pufu-core - Core library for pufu
 
-pub use pufu_macros::Codec;
-
+pub mod codec;
 pub mod zc;
 
-/// Trait for types that can be encoded and decoded.
-pub trait Codec {}
+pub use codec::{Codec, CodecError};
+pub use pufu_macros::Codec;
