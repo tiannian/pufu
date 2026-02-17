@@ -68,31 +68,39 @@ impl Encoder {
     }
 
     pub fn finalize(self, out: &mut Vec<u8>) {
-        const HEADER_LEN: u32 = 12;
+        // Header fields (excluding magic and version): total_len (4) + var_entry_offset (4) = 8 bytes
+        const HEADER_FIELDS_LEN: u32 = 8;
 
-        let total_len = self.fixed.len() + self.var_length.len() * 4 + self.data.len();
-        let var_entry_offset = self.fixed.len();
-        let data_offset = var_entry_offset + self.var_length.len() * 4;
+        // Calculate offsets relative to the first byte after magic+version (i.e., payload start)
+        let fixed_len = self.fixed.len() as u32;
+        let var_entry_len = self.var_length.len() as u32 * 4;
+        let data_len = self.data.len() as u32;
 
-        let total_len_u32: u32 = total_len as u32 + HEADER_LEN;
-        let var_entry_offset_u32: u32 = var_entry_offset as u32 + HEADER_LEN;
-        let data_offset_u32: u32 = data_offset as u32 + HEADER_LEN;
+        // total_len: from first byte of total_len field to end of payload
+        // Includes: total_len (4) + var_entry_offset (4) + FixedRegion + VarEntry + Data
+        let total_len = HEADER_FIELDS_LEN + fixed_len + var_entry_len + data_len;
 
-        out.extend_from_slice(&total_len_u32.to_le_bytes());
-        out.extend_from_slice(&var_entry_offset_u32.to_le_bytes());
-        out.extend_from_slice(&data_offset_u32.to_le_bytes());
+        // var_entry_offset: offset from first byte after magic+version to VarEntry region
+        // Includes: total_len (4) + var_entry_offset (4) + FixedRegion
+        let var_entry_offset = HEADER_FIELDS_LEN + fixed_len;
+
+        // Data region starts after VarEntry
+        let data_start_offset = var_entry_offset + var_entry_len;
+
+        // Write header fields (total_len and var_entry_offset)
+        out.extend_from_slice(&total_len.to_le_bytes());
+        out.extend_from_slice(&var_entry_offset.to_le_bytes());
+
+        // Write FixedRegion
         out.extend_from_slice(&self.fixed);
 
-        // Convert data-relative offsets (stored as lengths) to absolute payload offsets
-        // VarEntry contains absolute offsets from byte 0 pointing into the Data region
-        // Data region starts at absolute offset: HEADER_LEN + data_offset
-        let mut current_offset = data_offset_u32;
+        let mut current_data_offset = data_start_offset;
         for &length in &self.var_length {
-            // Write the absolute offset pointing to the start of this variable-length value
-            out.extend_from_slice(&current_offset.to_le_bytes());
-            // Advance by the length of this value for the next offset
-            current_offset = current_offset.checked_add(length).expect("offset overflow");
+            out.extend_from_slice(&current_data_offset.to_le_bytes());
+            current_data_offset += length;
         }
+
+        // Write Data region
         out.extend_from_slice(&self.data);
     }
 }
