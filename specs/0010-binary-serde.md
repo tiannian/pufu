@@ -28,11 +28,10 @@ The header is fixed-size and appears at the beginning of the payload.
 | `version`         | u8      | Protocol version.                                                           |
 | `total_len`       | u32     | Total length in bytes from the first byte of this field to the end of the payload; does **not** include the 4-byte magic or the 1-byte version. |
 | `var_entry_offset`| u32     | Offset from the **first byte after magic and version** to the first byte of the VarEntry region. Stored value **excludes** the 5-byte magic+version; actual byte position from payload start = `5 + var_entry_offset`. |
-| `data_offset`     | u32     | Offset from the **first byte after magic and version** to the first byte of the Data region. Stored value **excludes** the 5-byte magic+version; actual byte position from payload start = `5 + data_offset`.     |
 
-The full header is 17 bytes (4 + 1 + 4 + 4 + 4). The header **excluding** magic and version — i.e. the three fields `total_len`, `var_entry_offset`, and `data_offset` — is **12 bytes**.
+The full header is 13 bytes (4 + 1 + 4 + 4). The header **excluding** magic and version — i.e. the two fields `total_len` and `var_entry_offset` — is **8 bytes**.
 
-**Length and offset convention**: All length and offset calculations **exclude** the 4-byte magic and the 1-byte version. The full payload length is always `5 + total_len`. The stored values of `var_entry_offset` and `data_offset` are byte offsets from the first byte of the 12-byte header (i.e. the first byte after magic and version). To obtain the actual byte position from the start of the payload, add 5: VarEntry starts at byte `5 + var_entry_offset`, Data at byte `5 + data_offset`.
+**Length and offset convention**: All length and offset calculations **exclude** the 4-byte magic and the 1-byte version. The full payload length is always `5 + total_len`. The stored value of `var_entry_offset` is a byte offset from the first byte of the 8-byte header (i.e. the first byte after magic and version). To obtain the actual byte position from the start of the payload, add 5: VarEntry starts at byte `5 + var_entry_offset`.
 
 Byte order (endianness) for multi-byte integer fields is left to the implementation; it must be consistent for encode and decode.
 
@@ -50,8 +49,10 @@ Byte order (endianness) for multi-byte integer fields is left to the implementat
 
 - **Position**: Starts at byte `5 + var_entry_offset` from the start of the payload (since `var_entry_offset` is stored relative to the first byte after magic and version).
 - **Format**: A sequence of `u32` values. Each value is a **VarEntryOffset**: the offset (from payload start) of the beginning of the corresponding variable-length value in the `Data` region.
-- **Count**: The number of VarEntry slots is `(data_offset - var_entry_offset) / 4` (using the stored header values).
-- **Length semantics**: The length of the *k*-th variable-length value is inferred as `(VarEntry[k+1] - VarEntry[k])` for *k* &lt; count; the last entry’s length is `(data_offset + total_data_length) - VarEntry[last]`, where `total_data_length` is the data region length: `total_len - data_offset` (because stored `data_offset` excludes magic and version; actual Data start = `5 + data_offset`, so `total_data_length = (5 + total_len) - (5 + data_offset) = total_len - data_offset`).
+- **Count calculation**:
+  - If `total_len == var_entry_offset`, then VarEntry is empty (no entries), and Data is also empty.
+  - If `total_len > var_entry_offset`, then VarEntry is not empty. The number of VarEntry slots is `(VarEntry[0] - var_entry_offset) / 4`, where `VarEntry[0]` is the first `u32` value in the VarEntry region (interpreted as an offset from payload start).
+- **Length semantics**: The length of the *k*-th variable-length value is inferred as `(VarEntry[k+1] - VarEntry[k])` for *k* &lt; count; the last entry’s length is `(total_len + 5) - VarEntry[last]`, where `total_len + 5` is the full payload length (since `total_len` excludes magic and version, the actual end of payload is at `5 + total_len`).
 
 Implementations may define the exact convention for the last entry (e.g. storing an extra sentinel offset or using `total_len`) as long as encode/decode are consistent.
 
@@ -59,7 +60,7 @@ Implementations may define the exact convention for the last entry (e.g. storing
 
 ### Data Region
 
-- **Position**: Starts at offset `data_offset` from the start of the payload.
+- **Position**: Starts immediately after the VarEntry region. If VarEntry is empty (`total_len == var_entry_offset`), then Data is also empty. Otherwise, Data starts at byte `VarEntry[0]` from the start of the payload (where `VarEntry[0]` is the first offset value in VarEntry).
 - **Content**: All variable-length values are concatenated in schema-defined order. Each value’s start is recorded in VarEntry; lengths are derived from consecutive VarEntry offsets (or from `total_len` for the last one).
 
 ---
@@ -91,9 +92,10 @@ Implementations may define the exact convention for the last entry (e.g. storing
 
 ### Invariants
 
-- `var_entry_offset` ≥ size of Header.
-- `data_offset` ≥ `var_entry_offset`; typically `data_offset - var_entry_offset` is a multiple of 4 (VarEntry is u32-aligned).
-- `total_len` is the number of bytes from the first byte of the `total_len` field to the end of the payload; it **excludes** magic (4) and version (1). The full payload length is therefore `5 + total_len`. The data region length is `(5 + total_len) - data_offset`. Hence `total_len` ≥ `data_offset - 5` in practice (so that the data region is non-negative).
+- `var_entry_offset` ≥ size of Header (8 bytes, excluding magic and version).
+- `total_len` is the number of bytes from the first byte of the `total_len` field to the end of the payload; it **excludes** magic (4) and version (1). The full payload length is therefore `5 + total_len`.
+- If `total_len > var_entry_offset`, then `VarEntry[0] - var_entry_offset` must be a multiple of 4 (VarEntry is u32-aligned), and `VarEntry[0]` must be ≥ `var_entry_offset + 4` (at least one entry exists).
+- If `total_len == var_entry_offset`, then both VarEntry and Data are empty.
 - The number of VarEntry slots must match the number of variable-length fields defined by the schema (including expansion of `Vec<Bytes>` and `Vec<Vec<u64>>` into multiple entries).
 
 ---
