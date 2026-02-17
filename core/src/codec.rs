@@ -32,8 +32,8 @@ pub trait Codec: Sized {
     where
         Self: 'a;
 
-    /// Encode into a byte vector.
-    fn encode(&self) -> Vec<u8>;
+    /// Encode into the given byte vector (appends).
+    fn encode(&self, buf: &mut Vec<u8>);
 
     /// Decode into a zero-copy view.
     fn decode<'a>(buf: &'a [u8]) -> Result<Self::View<'a>, CodecError>;

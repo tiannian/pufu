@@ -32,13 +32,13 @@ Trait for types that can be encoded and decoded with an optional zero-copy view.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `encode` | `fn encode(&self) -> Vec<u8>` | Encode the value into a byte vector. |
+| `encode` | `fn encode(&self, buf: &mut Vec<u8>)` | Append the encoded value to the given byte vector. |
 | `decode` | `fn decode<'a>(buf: &'a [u8]) -> Result<Self::View<'a>, CodecError>` | Decode the buffer into a zero-copy view. |
 | `validate` | `fn validate(buf: &[u8]) -> Result<(), CodecError>` | Optionally validate the buffer without constructing the view. |
 
 **Contract**:
 
-- `encode` produces a byte sequence that, when passed to `decode`, yields a view equivalent to the original value (for the intended semantics of the type).
+- `encode(self, buf)` appends the encoded byte sequence to `buf`; that sequence, when passed to `decode`, yields a view equivalent to the original value (for the intended semantics of the type).
 - `validate(buf)` succeeds if and only if `decode(buf)` would succeed; it may be used to check layout or integrity without allocating or building the view.
 - Decode and validate must report `CodecError::InvalidLength` when the buffer length or layout is invalid, and `CodecError::ValidationFailed` when a checksum, magic, or structural check fails.
 
