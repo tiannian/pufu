@@ -21,8 +21,6 @@ pub trait DataType {
     }
 }
 
-pub(crate) trait FixedElement: DataType {}
-
 macro_rules! impl_fixed_data_type_for_primitive {
     ($($t:ty),* $(,)?) => {
         $(
@@ -39,7 +37,6 @@ macro_rules! impl_fixed_data_type_for_primitive {
                 }
             }
 
-            impl FixedElement for $t {}
         )*
     };
 }
@@ -48,59 +45,65 @@ impl_fixed_data_type_for_primitive!(u8, u16, u32, u64, u128, usize, i8, i16, i32
 
 impl<T, const N: usize> DataType for [T; N]
 where
-    T: FixedElement,
+    T: DataType,
 {
     const MODE: DataMode = DataMode::Fixed;
     const LENGTH: usize = T::LENGTH * N;
 
     fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
+        if T::MODE != DataMode::Fixed {
+            panic!("fixed arrays require fixed data types");
+        }
         for i in self {
             i.push_fixed_data(encoder_fixed, endian);
         }
     }
 }
 
-impl<T, const N: usize> FixedElement for [T; N] where T: FixedElement {}
-
 impl<T, const N: usize> DataType for &[T; N]
 where
-    T: FixedElement,
+    T: DataType,
 {
     const MODE: DataMode = DataMode::Fixed;
     const LENGTH: usize = T::LENGTH * N;
 
     fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
+        if T::MODE != DataMode::Fixed {
+            panic!("fixed arrays require fixed data types");
+        }
         for i in self.iter() {
             i.push_fixed_data(encoder_fixed, endian);
         }
     }
 }
-
-impl<T, const N: usize> FixedElement for &[T; N] where T: FixedElement {}
 
 impl<T, const N: usize> DataType for &mut [T; N]
 where
-    T: FixedElement,
+    T: DataType,
 {
     const MODE: DataMode = DataMode::Fixed;
     const LENGTH: usize = T::LENGTH * N;
 
     fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
+        if T::MODE != DataMode::Fixed {
+            panic!("fixed arrays require fixed data types");
+        }
         for i in self.iter() {
             i.push_fixed_data(encoder_fixed, endian);
         }
     }
 }
 
-impl<T, const N: usize> FixedElement for &mut [T; N] where T: FixedElement {}
-
 impl<T> DataType for Vec<T>
 where
-    T: FixedElement,
+    T: DataType,
 {
     const MODE: DataMode = DataMode::Var1;
 
     fn push_var1_data(&self, var_length: &mut Vec<u32>, data: &mut Vec<u8>, endian: &Endian) {
+        if T::MODE != DataMode::Fixed {
+            panic!("var1 vectors require fixed element types");
+        }
         let this: &[T] = self;
         this.push_var1_data(var_length, data, endian);
     }
@@ -108,11 +111,14 @@ where
 
 impl<T> DataType for &Vec<T>
 where
-    T: FixedElement,
+    T: DataType,
 {
     const MODE: DataMode = DataMode::Var1;
 
     fn push_var1_data(&self, var_length: &mut Vec<u32>, data: &mut Vec<u8>, endian: &Endian) {
+        if T::MODE != DataMode::Fixed {
+            panic!("var1 vectors require fixed element types");
+        }
         let this: &[T] = self.as_slice();
         this.push_var1_data(var_length, data, endian);
     }
@@ -120,11 +126,14 @@ where
 
 impl<T> DataType for &mut Vec<T>
 where
-    T: FixedElement,
+    T: DataType,
 {
     const MODE: DataMode = DataMode::Var1;
 
     fn push_var1_data(&self, var_length: &mut Vec<u32>, data: &mut Vec<u8>, endian: &Endian) {
+        if T::MODE != DataMode::Fixed {
+            panic!("var1 vectors require fixed element types");
+        }
         let this: &[T] = self.as_slice();
         this.push_var1_data(var_length, data, endian);
     }
@@ -132,11 +141,14 @@ where
 
 impl<T> DataType for &[T]
 where
-    T: FixedElement,
+    T: DataType,
 {
     const MODE: DataMode = DataMode::Var1;
 
     fn push_var1_data(&self, var_length: &mut Vec<u32>, data: &mut Vec<u8>, endian: &Endian) {
+        if T::MODE != DataMode::Fixed {
+            panic!("var1 slices require fixed element types");
+        }
         let mut length = 0;
 
         for item in self.iter() {
@@ -150,11 +162,14 @@ where
 
 impl<T> DataType for &mut [T]
 where
-    T: FixedElement,
+    T: DataType,
 {
     const MODE: DataMode = DataMode::Var1;
 
     fn push_var1_data(&self, var_length: &mut Vec<u32>, data: &mut Vec<u8>, endian: &Endian) {
+        if T::MODE != DataMode::Fixed {
+            panic!("var1 slices require fixed element types");
+        }
         let this: &[T] = self;
         this.push_var1_data(var_length, data, endian);
     }

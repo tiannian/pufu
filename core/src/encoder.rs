@@ -136,4 +136,12 @@ mod tests {
         assert_eq!(encoder.var_length, vec![4, 2]);
         assert_eq!(encoder.data, vec![0x01, 0x00, 0x02, 0x00, 0x03, 0x00]);
     }
+
+    #[test]
+    #[should_panic(expected = "var1 vectors require fixed element types")]
+    fn rejects_var3_vec_vec_vec_u8() {
+        let mut encoder = Encoder::little();
+        let value: Vec<Vec<Vec<u8>>> = vec![vec![vec![1]]];
+        value.encode_field::<false>(&mut encoder);
+    }
 }

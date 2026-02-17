@@ -1,4 +1,3 @@
-use crate::sealed::FixedElement;
 use crate::{DataMode, DataType, Encoder};
 
 pub trait FieldEncode {
@@ -23,7 +22,7 @@ impl_field_encode_for_fixed_primitive!(
 
 impl<T, const N: usize> FieldEncode for [T; N]
 where
-    T: FixedElement,
+    T: DataType,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
         self.push_fixed_data(&mut e.fixed, &e.endian);
@@ -32,7 +31,7 @@ where
 
 impl<T, const N: usize> FieldEncode for &[T; N]
 where
-    T: FixedElement,
+    T: DataType,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
         self.push_fixed_data(&mut e.fixed, &e.endian);
@@ -41,7 +40,7 @@ where
 
 impl<T, const N: usize> FieldEncode for &mut [T; N]
 where
-    T: FixedElement,
+    T: DataType,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
         self.push_fixed_data(&mut e.fixed, &e.endian);
@@ -91,7 +90,7 @@ where
 
 impl<T> FieldEncode for &[T]
 where
-    T: FixedElement,
+    T: DataType,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
         self.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);
@@ -100,7 +99,7 @@ where
 
 impl<T> FieldEncode for &mut [T]
 where
-    T: FixedElement,
+    T: DataType,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
         self.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);
