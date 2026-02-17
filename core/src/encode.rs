@@ -96,7 +96,24 @@ where
     T: DataType,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
-        self.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);
+        match T::MODE {
+            DataMode::Fixed => {
+                let mut length = 0;
+                for item in self.iter() {
+                    item.push_fixed_data(&mut e.data, &e.endian);
+                    length += T::LENGTH;
+                }
+                e.var_length.push(length as u32);
+            }
+            DataMode::Var1 => {
+                if IS_LAST_VAR {
+                    panic!("var2 vectors cannot be encoded as last variable field");
+                }
+                for item in self.iter() {
+                    item.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);
+                }
+            }
+        }
     }
 }
 
@@ -105,7 +122,8 @@ where
     T: DataType,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
-        self.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);
+        let this: &[T] = self;
+        <&[T] as FieldEncode>::encode_field::<IS_LAST_VAR>(&this, e);
     }
 }
 
