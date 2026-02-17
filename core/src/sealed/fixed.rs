@@ -1,6 +1,10 @@
 use crate::Endian;
 
-pub trait FixedDataType {
+pub mod fixed_sealed {
+    pub trait FixedDataType {}
+}
+
+pub trait FixedDataType: fixed_sealed::FixedDataType {
     const LENGTH: usize;
 
     fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian);
@@ -9,6 +13,8 @@ pub trait FixedDataType {
 macro_rules! impl_fixed_data_type_for_primitive {
     ($($t:ty),*) => {
         $(
+            impl fixed_sealed::FixedDataType for $t {}
+
             impl FixedDataType for $t {
                 const LENGTH: usize = std::mem::size_of::<$t>();
 
@@ -26,7 +32,12 @@ macro_rules! impl_fixed_data_type_for_primitive {
 
 impl_fixed_data_type_for_primitive!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
 
-impl<T: FixedDataType, const N: usize> FixedDataType for [T; N] {
+impl<T, const N: usize> fixed_sealed::FixedDataType for [T; N] where T: FixedDataType {}
+
+impl<T, const N: usize> FixedDataType for [T; N]
+where
+    T: FixedDataType,
+{
     const LENGTH: usize = T::LENGTH * N;
 
     fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
@@ -36,22 +47,28 @@ impl<T: FixedDataType, const N: usize> FixedDataType for [T; N] {
     }
 }
 
-impl<T: FixedDataType, const N: usize> FixedDataType for &[T; N] {
-    const LENGTH: usize = T::LENGTH * N;
+// impl<T, const N: usize> FixedDataType for &[T; N]
+// where
+//     T: FixedDataType,
+// {
+//     const LENGTH: usize = T::LENGTH * N;
 
-    fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
-        for i in self.iter() {
-            i.push_fixed_data(encoder_fixed, endian);
-        }
-    }
-}
+//     fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
+//         for i in self.iter() {
+//             i.push_fixed_data(encoder_fixed, endian);
+//         }
+//     }
+// }
 
-impl<T: FixedDataType, const N: usize> FixedDataType for &mut [T; N] {
-    const LENGTH: usize = T::LENGTH * N;
+// impl<T, const N: usize> FixedDataType for &mut [T; N]
+// where
+//     T: FixedDataType,
+// {
+//     const LENGTH: usize = T::LENGTH * N;
 
-    fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
-        for i in self.iter() {
-            i.push_fixed_data(encoder_fixed, endian);
-        }
-    }
-}
+//     fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
+//         for i in self.iter() {
+//             i.push_fixed_data(encoder_fixed, endian);
+//         }
+//     }
+// }
