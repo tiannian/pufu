@@ -117,7 +117,7 @@ mod tests {
         let mut encoder = Encoder::little();
         let mut outer: Vec<Vec<u16>> = vec![vec![1, 2], vec![3]];
 
-        (&outer).encode_field::<false>(&mut encoder);
+        (&outer).encode_field::<true>(&mut encoder);
         assert_eq!(encoder.var_length, vec![4, 2]);
         assert_eq!(encoder.data, vec![0x01, 0x00, 0x02, 0x00, 0x03, 0x00]);
 
@@ -132,7 +132,7 @@ mod tests {
         );
 
         let mut encoder = Encoder::little();
-        (&mut outer).encode_field::<false>(&mut encoder);
+        (&mut outer).encode_field::<true>(&mut encoder);
         assert_eq!(encoder.var_length, vec![4, 2]);
         assert_eq!(encoder.data, vec![0x01, 0x00, 0x02, 0x00, 0x03, 0x00]);
     }
@@ -142,6 +142,6 @@ mod tests {
     fn rejects_var3_vec_vec_vec_u8() {
         let mut encoder = Encoder::little();
         let value: Vec<Vec<Vec<u8>>> = vec![vec![vec![1]]];
-        value.encode_field::<false>(&mut encoder);
+        value.encode_field::<true>(&mut encoder);
     }
 }
