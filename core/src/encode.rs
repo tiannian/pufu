@@ -62,6 +62,9 @@ where
                 e.var_length.push(length as u32);
             }
             DataMode::Var1 => {
+                if IS_LAST_VAR {
+                    panic!("var2 vectors cannot be encoded as last variable field");
+                }
                 for item in self.iter() {
                     item.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);
                 }
@@ -103,5 +106,18 @@ where
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
         self.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Encoder, FieldEncode};
+
+    #[test]
+    #[should_panic(expected = "var2 vectors cannot be encoded as last variable field")]
+    fn rejects_var2_when_marked_last_var() {
+        let mut encoder = Encoder::little();
+        let value: Vec<Vec<u16>> = vec![vec![1, 2], vec![3]];
+        value.encode_field::<true>(&mut encoder);
     }
 }
