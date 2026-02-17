@@ -106,6 +106,30 @@ where
     }
 }
 
+impl<T> DataType for &Vec<T>
+where
+    T: FixedElement,
+{
+    const MODE: DataMode = DataMode::Var1;
+
+    fn push_var1_data(&self, var_length: &mut Vec<u32>, data: &mut Vec<u8>, endian: &Endian) {
+        let this: &[T] = self.as_slice();
+        this.push_var1_data(var_length, data, endian);
+    }
+}
+
+impl<T> DataType for &mut Vec<T>
+where
+    T: FixedElement,
+{
+    const MODE: DataMode = DataMode::Var1;
+
+    fn push_var1_data(&self, var_length: &mut Vec<u32>, data: &mut Vec<u8>, endian: &Endian) {
+        let this: &[T] = self.as_slice();
+        this.push_var1_data(var_length, data, endian);
+    }
+}
+
 impl<T> DataType for &[T]
 where
     T: FixedElement,

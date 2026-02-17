@@ -71,6 +71,24 @@ where
     }
 }
 
+impl<T> FieldEncode for &Vec<T>
+where
+    T: DataType,
+{
+    fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
+        <Vec<T> as FieldEncode>::encode_field::<IS_LAST_VAR>(self, e);
+    }
+}
+
+impl<T> FieldEncode for &mut Vec<T>
+where
+    T: DataType,
+{
+    fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
+        <Vec<T> as FieldEncode>::encode_field::<IS_LAST_VAR>(self, e);
+    }
+}
+
 impl<T> FieldEncode for &[T]
 where
     T: FixedElement,
