@@ -1,4 +1,5 @@
-use crate::{Encoder, FixedDataType, Var1DataType};
+use crate::sealed::FixedElement;
+use crate::{DataMode, DataType, Encoder};
 
 pub trait FieldEncode {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder);
@@ -22,7 +23,25 @@ impl_field_encode_for_fixed_primitive!(
 
 impl<T, const N: usize> FieldEncode for [T; N]
 where
-    T: FixedDataType,
+    T: FixedElement,
+{
+    fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
+        self.push_fixed_data(&mut e.fixed, &e.endian);
+    }
+}
+
+impl<T, const N: usize> FieldEncode for &[T; N]
+where
+    T: FixedElement,
+{
+    fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
+        self.push_fixed_data(&mut e.fixed, &e.endian);
+    }
+}
+
+impl<T, const N: usize> FieldEncode for &mut [T; N]
+where
+    T: FixedElement,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
         self.push_fixed_data(&mut e.fixed, &e.endian);
@@ -31,16 +50,30 @@ where
 
 impl<T> FieldEncode for Vec<T>
 where
-    T: FixedDataType,
+    T: DataType,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
-        self.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);
+        match T::MODE {
+            DataMode::Fixed => {
+                let mut length = 0;
+                for item in self.iter() {
+                    item.push_fixed_data(&mut e.data, &e.endian);
+                    length += T::LENGTH;
+                }
+                e.var_length.push(length as u32);
+            }
+            DataMode::Var1 => {
+                for item in self.iter() {
+                    item.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);
+                }
+            }
+        }
     }
 }
 
 impl<T> FieldEncode for &[T]
 where
-    T: FixedDataType,
+    T: FixedElement,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
         self.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);
@@ -49,7 +82,7 @@ where
 
 impl<T> FieldEncode for &mut [T]
 where
-    T: FixedDataType,
+    T: FixedElement,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
         self.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);

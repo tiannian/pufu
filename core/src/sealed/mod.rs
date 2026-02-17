@@ -1,5 +1,4 @@
-mod fixed;
-pub use fixed::*;
+mod data_type;
+pub use data_type::*;
 
-mod var1;
-pub use var1::*;
+pub(crate) use data_type::FixedElement;
