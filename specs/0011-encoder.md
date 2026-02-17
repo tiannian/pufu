@@ -27,9 +27,6 @@ Invariants: `var_idx` entries must be in the range `[0, data.len()]` and non-dec
 
 ### Methods
 
-- **`push_offset(&mut self)`**  
-  Pushes the current length of `data` (as `u32`) onto `var_idx`. Used to record the start offset of the next variable-length value before appending it to `data`.
-
 - **`push_fixed(&mut self, bytes: &[u8])`**  
   Appends `bytes` to `fixed`. Used for fixed-length fields (primitives or fixed-size byte arrays) in schema order.
 
@@ -37,7 +34,7 @@ Invariants: `var_idx` entries must be in the range `[0, data.len()]` and non-dec
   Pushes a single `u32` value onto `var_idx`. The value is a data-relative offset (e.g. `data.len() as u32` at the time the corresponding variable-length value starts). Caller is responsible for ensuring the offset is valid.
 
 - **`push_data(&mut self, bytes: &[u8])`**  
-  Appends `bytes` to `data`. Used for variable-length values (e.g. `Bytes`, `String`, or raw segments). Typically preceded by `push_offset()` to record the start of this value.
+  Appends `bytes` to `data`. Used for variable-length values (e.g. `Bytes`, `String`, or raw segments). Use `push_var_idx` to record the start offset when needed.
 
 - **`finalize(self, out: &mut Vec<u8>) -> Result<(), CodecError>`**  
   Consumes the Encoder and writes the payload into `out` (appends). Does **not** write magic or version. Layout: `total_len` (u32), `var_entry_offset` (u32), `data_offset` (u32), FixedRegion, VarEntry (each `u32` converted to payload-start-relative offset), Data. All offsets are relative to the first byte of this payload. Returns `Ok(())` on success; may return `CodecError` if the Encoder state is invalid (e.g. offset overflow). Byte order for multi-byte fields must match the decoder (e.g. little-endian).

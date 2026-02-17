@@ -24,12 +24,6 @@ impl Encoder {
         }
     }
 
-    /// Pushes the current length of `data` as the next VarEntry offset.
-    #[inline]
-    pub fn push_offset(&mut self) {
-        self.var_idx.push(self.data.len() as u32);
-    }
-
     /// Appends bytes to the fixed region.
     #[inline]
     pub fn push_fixed(&mut self, bytes: &[u8]) {
