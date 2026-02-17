@@ -1,4 +1,4 @@
-use crate::zc::Endian;
+use crate::Endian;
 
 pub trait FixedDataType {
     const LENGTH: usize;

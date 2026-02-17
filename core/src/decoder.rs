@@ -1,6 +1,6 @@
 //! Decoder for reading binary payloads (no magic or version; see specs/0012-decoder.md).
 
-use crate::codec::CodecError;
+// use crate::codec::CodecError;
 
 /// Decoder for reading binary payloads produced by `Encoder`.
 ///

@@ -1,4 +1,4 @@
-use crate::zc::{Endian, FixedDataType};
+use crate::{Endian, FixedDataType};
 
 pub trait Var1DataType<T: FixedDataType> {
     fn push_var1_data(&self, var_length: &mut Vec<u32>, data: &mut Vec<u8>, endian: &Endian);

@@ -1,6 +1,6 @@
 //! Encoder for building binary payloads (no magic or version; see specs/0011-encoder.md).
 
-use crate::zc::{Endian, FixedDataType, Var1DataType};
+use crate::Endian;
 
 /// Encoder for building binary payloads. Accumulates fixed region, variable-entry index
 /// (data-relative offsets), and data region. Does not write magic or version.
@@ -37,34 +37,6 @@ impl Encoder {
 
     pub fn native() -> Self {
         Self::new(Endian::Native)
-    }
-
-    pub fn push_fixed_array<D>(&mut self, data: D)
-    where
-        D: FixedDataType,
-    {
-        data.push_fixed_data(&mut self.fixed, &self.endian);
-    }
-
-    pub fn push_var1_data<T, Var1>(&mut self, data: Var1)
-    where
-        T: FixedDataType,
-        Var1: Var1DataType<T>,
-    {
-        data.push_var1_data(&mut self.var_length, &mut self.data, &self.endian);
-    }
-
-    pub fn push_var2_data<T, Var1, Var2>(&mut self, data: Var2)
-    where
-        T: FixedDataType,
-        Var1: Var1DataType<T>,
-        Var2: AsRef<[Var1]>,
-    {
-        let this: &[Var1] = data.as_ref();
-
-        for item in this.iter() {
-            item.push_var1_data(&mut self.var_length, &mut self.data, &self.endian);
-        }
     }
 
     pub fn finalize(self, out: &mut Vec<u8>) {
