@@ -76,3 +76,64 @@ impl Encoder {
         out.extend_from_slice(&self.data);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Encoder;
+    use crate::FieldEncode;
+
+    #[test]
+    fn encode_fixed_and_var1_vec_fixed() {
+        let mut encoder = Encoder::little();
+
+        let fixed_u8: u8 = 0xaa;
+        let fixed_array: [u16; 2] = [0x0102, 0x0304];
+        let var_vec: Vec<u32> = vec![0x0a0b0c0d, 0x01020304];
+
+        fixed_u8.encode_field::<false>(&mut encoder);
+        fixed_array.encode_field::<false>(&mut encoder);
+        var_vec.encode_field::<true>(&mut encoder);
+
+        assert_eq!(encoder.fixed, vec![0xaa, 0x02, 0x01, 0x04, 0x03]);
+        assert_eq!(encoder.var_length, vec![8]);
+        assert_eq!(
+            encoder.data,
+            vec![0x0d, 0x0c, 0x0b, 0x0a, 0x04, 0x03, 0x02, 0x01]
+        );
+
+        let mut out = Vec::new();
+        encoder.finalize(&mut out);
+        assert_eq!(
+            out,
+            vec![
+                0x19, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x00, 0x00, 0xaa, 0x02, 0x01, 0x04, 0x03, 0x11,
+                0x00, 0x00, 0x00, 0x0d, 0x0c, 0x0b, 0x0a, 0x04, 0x03, 0x02, 0x01,
+            ]
+        );
+    }
+
+    #[test]
+    fn encode_var2_vec_vec_fixed() {
+        let mut encoder = Encoder::little();
+        let mut outer: Vec<Vec<u16>> = vec![vec![1, 2], vec![3]];
+
+        (&outer).encode_field::<false>(&mut encoder);
+        assert_eq!(encoder.var_length, vec![4, 2]);
+        assert_eq!(encoder.data, vec![0x01, 0x00, 0x02, 0x00, 0x03, 0x00]);
+
+        let mut out = Vec::new();
+        encoder.finalize(&mut out);
+        assert_eq!(
+            out,
+            vec![
+                0x16, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x14, 0x00,
+                0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00,
+            ]
+        );
+
+        let mut encoder = Encoder::little();
+        (&mut outer).encode_field::<false>(&mut encoder);
+        assert_eq!(encoder.var_length, vec![4, 2]);
+        assert_eq!(encoder.data, vec![0x01, 0x00, 0x02, 0x00, 0x03, 0x00]);
+    }
+}
