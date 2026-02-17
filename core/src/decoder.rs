@@ -162,37 +162,9 @@ impl<'a> Decoder<'a> {
             return Err(CodecError::InvalidLength);
         }
 
-        // Helper to read a u32 from VarEntry at the given entry index.
-        let read_entry = |decoder: &Decoder<'a>, entry_idx: u32| -> Result<u32, CodecError> {
-            let offset_in_entries = entry_idx.checked_mul(4).ok_or(CodecError::InvalidLength)?;
-            let var_entry_abs = decoder
-                .var_idx_offset
-                .checked_add(offset_in_entries)
-                .ok_or(CodecError::InvalidLength)?;
-            let var_entry_end_abs = var_entry_abs
-                .checked_add(4)
-                .ok_or(CodecError::InvalidLength)?;
-
-            // Entry must be within the VarEntry region and payload.
-            if var_entry_end_abs > decoder.data_offset || var_entry_end_abs > decoder.total_len {
-                return Err(CodecError::InvalidLength);
-            }
-
-            let start = usize::try_from(var_entry_abs).map_err(|_| CodecError::InvalidLength)?;
-            let end = usize::try_from(var_entry_end_abs).map_err(|_| CodecError::InvalidLength)?;
-            if end > decoder.buf.len() {
-                return Err(CodecError::InvalidLength);
-            }
-
-            let bytes: [u8; 4] = decoder.buf[start..end]
-                .try_into()
-                .map_err(|_| CodecError::InvalidLength)?;
-            Ok(u32::from_le_bytes(bytes))
-        };
-
-        let start_abs = read_entry(self, idx)?;
+        let start_abs = self.read_entry(idx)?;
         let end_abs = if idx + 1 < count {
-            read_entry(self, idx + 1)?
+            self.read_entry(idx + 1)?
         } else {
             self.total_len
         };
@@ -209,5 +181,33 @@ impl<'a> Decoder<'a> {
         }
 
         Ok(&self.buf[start..end])
+    }
+
+    /// Reads a `u32` VarEntry at the given entry index.
+    fn read_entry(&self, entry_idx: u32) -> Result<u32, CodecError> {
+        let offset_in_entries = entry_idx.checked_mul(4).ok_or(CodecError::InvalidLength)?;
+        let var_entry_abs = self
+            .var_idx_offset
+            .checked_add(offset_in_entries)
+            .ok_or(CodecError::InvalidLength)?;
+        let var_entry_end_abs = var_entry_abs
+            .checked_add(4)
+            .ok_or(CodecError::InvalidLength)?;
+
+        // Entry must be within the VarEntry region and payload.
+        if var_entry_end_abs > self.data_offset || var_entry_end_abs > self.total_len {
+            return Err(CodecError::InvalidLength);
+        }
+
+        let start = usize::try_from(var_entry_abs).map_err(|_| CodecError::InvalidLength)?;
+        let end = usize::try_from(var_entry_end_abs).map_err(|_| CodecError::InvalidLength)?;
+        if end > self.buf.len() {
+            return Err(CodecError::InvalidLength);
+        }
+
+        let bytes: [u8; 4] = self.buf[start..end]
+            .try_into()
+            .map_err(|_| CodecError::InvalidLength)?;
+        Ok(u32::from_le_bytes(bytes))
     }
 }
