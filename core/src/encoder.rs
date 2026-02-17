@@ -1,6 +1,6 @@
 //! Encoder for building binary payloads (no magic or version; see specs/0011-encoder.md).
 
-use crate::zc::{Endian, FixedDataType, Var1DataType};
+use crate::Endian;
 
 /// Encoder for building binary payloads. Accumulates fixed region, variable-entry index
 /// (data-relative offsets), and data region. Does not write magic or version.
@@ -39,34 +39,6 @@ impl Encoder {
         Self::new(Endian::Native)
     }
 
-    pub fn push_fixed_array<D>(&mut self, data: D)
-    where
-        D: FixedDataType,
-    {
-        data.push_fixed_data(&mut self.fixed, &self.endian);
-    }
-
-    pub fn push_var1_data<T, Var1>(&mut self, data: Var1)
-    where
-        T: FixedDataType,
-        Var1: Var1DataType<T>,
-    {
-        data.push_var1_data(&mut self.var_length, &mut self.data, &self.endian);
-    }
-
-    pub fn push_var2_data<T, Var1, Var2>(&mut self, data: Var2)
-    where
-        T: FixedDataType,
-        Var1: Var1DataType<T>,
-        Var2: AsRef<[Var1]>,
-    {
-        let this: &[Var1] = data.as_ref();
-
-        for item in this.iter() {
-            item.push_var1_data(&mut self.var_length, &mut self.data, &self.endian);
-        }
-    }
-
     pub fn finalize(self, out: &mut Vec<u8>) {
         // Header fields (excluding magic and version): total_len (4) + var_entry_offset (4) = 8 bytes
         const HEADER_FIELDS_LEN: u32 = 8;
@@ -102,5 +74,74 @@ impl Encoder {
 
         // Write Data region
         out.extend_from_slice(&self.data);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Encoder;
+    use crate::FieldEncode;
+
+    #[test]
+    fn encode_fixed_and_var1_vec_fixed() {
+        let mut encoder = Encoder::little();
+
+        let fixed_u8: u8 = 0xaa;
+        let fixed_array: [u16; 2] = [0x0102, 0x0304];
+        let var_vec: Vec<u32> = vec![0x0a0b0c0d, 0x01020304];
+
+        fixed_u8.encode_field::<false>(&mut encoder);
+        fixed_array.encode_field::<false>(&mut encoder);
+        var_vec.encode_field::<true>(&mut encoder);
+
+        assert_eq!(encoder.fixed, vec![0xaa, 0x02, 0x01, 0x04, 0x03]);
+        assert_eq!(encoder.var_length, vec![8]);
+        assert_eq!(
+            encoder.data,
+            vec![0x0d, 0x0c, 0x0b, 0x0a, 0x04, 0x03, 0x02, 0x01]
+        );
+
+        let mut out = Vec::new();
+        encoder.finalize(&mut out);
+        assert_eq!(
+            out,
+            vec![
+                0x19, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x00, 0x00, 0xaa, 0x02, 0x01, 0x04, 0x03, 0x11,
+                0x00, 0x00, 0x00, 0x0d, 0x0c, 0x0b, 0x0a, 0x04, 0x03, 0x02, 0x01,
+            ]
+        );
+    }
+
+    #[test]
+    fn encode_var2_vec_vec_fixed() {
+        let mut encoder = Encoder::little();
+        let mut outer: Vec<Vec<u16>> = vec![vec![1, 2], vec![3]];
+
+        (&outer).encode_field::<false>(&mut encoder);
+        assert_eq!(encoder.var_length, vec![4, 2]);
+        assert_eq!(encoder.data, vec![0x01, 0x00, 0x02, 0x00, 0x03, 0x00]);
+
+        let mut out = Vec::new();
+        encoder.finalize(&mut out);
+        assert_eq!(
+            out,
+            vec![
+                0x16, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x14, 0x00,
+                0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00,
+            ]
+        );
+
+        let mut encoder = Encoder::little();
+        (&mut outer).encode_field::<false>(&mut encoder);
+        assert_eq!(encoder.var_length, vec![4, 2]);
+        assert_eq!(encoder.data, vec![0x01, 0x00, 0x02, 0x00, 0x03, 0x00]);
+    }
+
+    #[test]
+    #[should_panic(expected = "var1 vectors require fixed element types")]
+    fn rejects_var3_vec_vec_vec_u8() {
+        let mut encoder = Encoder::little();
+        let value: Vec<Vec<Vec<u8>>> = vec![vec![vec![1]]];
+        value.encode_field::<false>(&mut encoder);
     }
 }

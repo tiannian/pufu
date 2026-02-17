@@ -1,11 +1,17 @@
 //! pufu-core - Core library for pufu
 
-pub mod codec;
-pub mod decoder;
-pub mod encoder;
-pub mod zc;
+mod encode;
+pub use encode::FieldEncode;
 
-pub use codec::{Codec, CodecError};
-pub use decoder::Decoder;
+mod encoder;
 pub use encoder::Encoder;
-pub use pufu_macros::Codec;
+
+mod sealed;
+pub use sealed::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Endian {
+    Little,
+    Big,
+    Native,
+}
