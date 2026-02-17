@@ -1,77 +1,98 @@
 //! Encoder for building binary payloads (no magic or version; see specs/0011-encoder.md).
 
-use crate::codec::CodecError;
+use crate::zc::{Endian, FixedDataType, Var1DataType};
 
 /// Encoder for building binary payloads. Accumulates fixed region, variable-entry index
 /// (data-relative offsets), and data region. Does not write magic or version.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Encoder {
     /// Bytes for the FixedRegion.
     pub fixed: Vec<u8>,
     /// Data-relative offsets; converted to payload-relative on finalize.
-    pub var_idx: Vec<u32>,
+    pub var_length: Vec<u32>,
     /// Variable-length data region.
     pub data: Vec<u8>,
+    /// Endianness of the fixed data.
+    pub endian: Endian,
 }
 
 impl Encoder {
     /// Creates an empty Encoder.
-    pub fn new() -> Self {
+    pub fn new(endian: Endian) -> Self {
         Self {
             fixed: vec![],
-            var_idx: vec![],
+            var_length: vec![],
             data: vec![],
+            endian,
         }
     }
 
-    /// Appends bytes to the fixed region.
-    #[inline]
-    pub fn push_fixed(&mut self, bytes: &[u8]) {
-        self.fixed.extend_from_slice(bytes);
+    pub fn little() -> Self {
+        Self::new(Endian::Little)
     }
 
-    /// Pushes a data-relative offset onto the variable-entry index.
-    #[inline]
-    pub fn push_var_idx(&mut self, offset: u32) {
-        self.var_idx.push(offset);
+    pub fn big() -> Self {
+        Self::new(Endian::Big)
     }
 
-    /// Appends bytes to the data region.
-    #[inline]
-    pub fn push_data(&mut self, bytes: &[u8]) {
-        self.data.extend_from_slice(bytes);
+    pub fn native() -> Self {
+        Self::new(Endian::Native)
     }
 
-    /// Writes the payload into `out` (appends). Layout: `total_len`, `var_entry_offset`,
-    /// `data_offset` (each u32 LE), FixedRegion, VarEntry (payload-relative u32s), Data.
-    /// Does not write magic or version.
-    pub fn finalize(self, out: &mut Vec<u8>) -> Result<(), CodecError> {
-        const HEADER_LEN: usize = 12;
-        let var_entry_len = self.var_idx.len().saturating_mul(4);
-        let total_len = HEADER_LEN + self.fixed.len() + var_entry_len + self.data.len();
-        let total_len_u32: u32 = total_len
-            .try_into()
-            .map_err(|_| CodecError::InvalidLength)?;
-        let var_entry_offset: u32 = (HEADER_LEN + self.fixed.len())
-            .try_into()
-            .map_err(|_| CodecError::InvalidLength)?;
-        let data_offset: u32 = (HEADER_LEN + self.fixed.len() + var_entry_len)
-            .try_into()
-            .map_err(|_| CodecError::InvalidLength)?;
-        let data_region_start = data_offset;
+    pub fn push_fixed_array<D>(&mut self, data: D)
+    where
+        D: FixedDataType,
+    {
+        data.push_fixed_data(&mut self.fixed, &self.endian);
+    }
 
-        out.reserve(total_len);
+    pub fn push_var1_data<T, Var1>(&mut self, data: Var1)
+    where
+        T: FixedDataType,
+        Var1: Var1DataType<T>,
+    {
+        data.push_var1_data(&mut self.var_length, &mut self.data, &self.endian);
+    }
+
+    pub fn push_var2_data<T, Var1, Var2>(&mut self, data: Var2)
+    where
+        T: FixedDataType,
+        Var1: Var1DataType<T>,
+        Var2: AsRef<[Var1]>,
+    {
+        let this: &[Var1] = data.as_ref();
+
+        for item in this.iter() {
+            item.push_var1_data(&mut self.var_length, &mut self.data, &self.endian);
+        }
+    }
+
+    pub fn finalize(self, out: &mut Vec<u8>) {
+        const HEADER_LEN: u32 = 12;
+
+        let total_len = self.fixed.len() + self.var_length.len() * 4 + self.data.len();
+        let var_entry_offset = self.fixed.len();
+        let data_offset = var_entry_offset + self.var_length.len() * 4;
+
+        let total_len_u32: u32 = total_len as u32 + HEADER_LEN;
+        let var_entry_offset_u32: u32 = var_entry_offset as u32 + HEADER_LEN;
+        let data_offset_u32: u32 = data_offset as u32 + HEADER_LEN;
+
         out.extend_from_slice(&total_len_u32.to_le_bytes());
-        out.extend_from_slice(&var_entry_offset.to_le_bytes());
-        out.extend_from_slice(&data_offset.to_le_bytes());
+        out.extend_from_slice(&var_entry_offset_u32.to_le_bytes());
+        out.extend_from_slice(&data_offset_u32.to_le_bytes());
         out.extend_from_slice(&self.fixed);
-        for &off in &self.var_idx {
-            let wire = data_region_start
-                .checked_add(off)
-                .ok_or(CodecError::InvalidLength)?;
-            out.extend_from_slice(&wire.to_le_bytes());
+
+        // Convert data-relative offsets (stored as lengths) to absolute payload offsets
+        // VarEntry contains absolute offsets from byte 0 pointing into the Data region
+        // Data region starts at absolute offset: HEADER_LEN + data_offset
+        let mut current_offset = data_offset_u32;
+        for &length in &self.var_length {
+            // Write the absolute offset pointing to the start of this variable-length value
+            out.extend_from_slice(&current_offset.to_le_bytes());
+            // Advance by the length of this value for the next offset
+            current_offset = current_offset.checked_add(length).expect("offset overflow");
         }
         out.extend_from_slice(&self.data);
-        Ok(())
     }
 }

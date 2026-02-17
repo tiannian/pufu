@@ -1,74 +1,57 @@
-//! ZcFixed implementations for primitives and fixed-size arrays.
+use crate::zc::Endian;
 
-use core::mem::{align_of, size_of};
+pub trait FixedDataType {
+    const LENGTH: usize;
 
-use super::sealed::NotU8;
-use super::traits::ZcFixed;
-
-// Unsigned ints
-impl ZcFixed for u8 {
-    const SIZE: usize = 1;
-    const ALIGN: usize = align_of::<u8>();
-}
-impl ZcFixed for u16 {
-    const SIZE: usize = 2;
-    const ALIGN: usize = align_of::<u16>();
-}
-impl ZcFixed for u32 {
-    const SIZE: usize = 4;
-    const ALIGN: usize = align_of::<u32>();
-}
-impl ZcFixed for u64 {
-    const SIZE: usize = 8;
-    const ALIGN: usize = align_of::<u64>();
-}
-impl ZcFixed for u128 {
-    const SIZE: usize = 16;
-    const ALIGN: usize = align_of::<u128>();
-}
-impl ZcFixed for usize {
-    const SIZE: usize = size_of::<usize>();
-    const ALIGN: usize = align_of::<usize>();
+    fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian);
 }
 
-// Signed ints
-impl ZcFixed for i8 {
-    const SIZE: usize = 1;
-    const ALIGN: usize = align_of::<i8>();
-}
-impl ZcFixed for i16 {
-    const SIZE: usize = 2;
-    const ALIGN: usize = align_of::<i16>();
-}
-impl ZcFixed for i32 {
-    const SIZE: usize = 4;
-    const ALIGN: usize = align_of::<i32>();
-}
-impl ZcFixed for i64 {
-    const SIZE: usize = 8;
-    const ALIGN: usize = align_of::<i64>();
-}
-impl ZcFixed for i128 {
-    const SIZE: usize = 16;
-    const ALIGN: usize = align_of::<i128>();
-}
-impl ZcFixed for isize {
-    const SIZE: usize = size_of::<isize>();
-    const ALIGN: usize = align_of::<isize>();
+macro_rules! impl_fixed_data_type_for_primitive {
+    ($($t:ty),*) => {
+        $(
+            impl FixedDataType for $t {
+                const LENGTH: usize = std::mem::size_of::<$t>();
+
+                fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
+                    match endian {
+                        Endian::Little => encoder_fixed.extend_from_slice(&self.to_le_bytes()),
+                        Endian::Big => encoder_fixed.extend_from_slice(&self.to_be_bytes()),
+                        Endian::Native => encoder_fixed.extend_from_slice(&self.to_le_bytes()),
+                    }
+                }
+            }
+        )*
+    };
 }
 
-// bool as fixed (1 byte in memory representation for a standalone bool value)
-impl ZcFixed for bool {
-    const SIZE: usize = size_of::<bool>();
-    const ALIGN: usize = align_of::<bool>();
+impl_fixed_data_type_for_primitive!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
+
+impl<T: FixedDataType, const N: usize> FixedDataType for [T; N] {
+    const LENGTH: usize = T::LENGTH * N;
+
+    fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
+        for i in self {
+            i.push_fixed_data(encoder_fixed, endian);
+        }
+    }
 }
 
-// Fixed-size arrays: [T; N] is fixed if T is fixed.
-impl<T: ZcFixed, const N: usize> ZcFixed for [T; N] {
-    const SIZE: usize = T::SIZE * N;
-    const ALIGN: usize = T::ALIGN;
+impl<T: FixedDataType, const N: usize> FixedDataType for &[T; N] {
+    const LENGTH: usize = T::LENGTH * N;
+
+    fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
+        for i in self.iter() {
+            i.push_fixed_data(encoder_fixed, endian);
+        }
+    }
 }
 
-// We also want Vec<[u8;32]> and Vec<[u64;4]> etc to be allowed as fixed-elem vec,
-// so we mark *arrays* as NotU8 (the element type itself isn't u8; it's [u8;N]).
-impl<T: ZcFixed, const N: usize> NotU8 for [T; N] {}
+impl<T: FixedDataType, const N: usize> FixedDataType for &mut [T; N] {
+    const LENGTH: usize = T::LENGTH * N;
+
+    fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
+        for i in self.iter() {
+            i.push_fixed_data(encoder_fixed, endian);
+        }
+    }
+}

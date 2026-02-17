@@ -24,10 +24,8 @@ pub struct Decoder<'a> {
     pub var_idx_offset: u32,
     /// Offset (relative to the start of this payload) where the Data region starts.
     pub data_offset: u32,
-    /// Current cursor in the FixedRegion (relative to the FixedRegion start).
+    /// Current cursor in the FixedRegion, as an absolute offset from the start of this payload.
     pub fixed_cursor: u32,
-    /// Current cursor in the VarEntry region (relative to `var_idx_offset`).
-    pub var_cursor: u32,
 }
 
 impl<'a> Decoder<'a> {
@@ -65,17 +63,11 @@ impl<'a> Decoder<'a> {
             u32::from_le_bytes(bytes)
         };
 
-        let total_len_usize: usize = total_len
-            .try_into()
-            .map_err(|_| CodecError::InvalidLength)?;
+        let total_len_usize = total_len as usize;
         if total_len_usize > buf.len() {
             return Err(CodecError::InvalidLength);
         }
 
-        // Basic structural checks.
-        if var_idx_offset < Self::HEADER_LEN {
-            return Err(CodecError::InvalidLength);
-        }
         if data_offset < var_idx_offset {
             return Err(CodecError::InvalidLength);
         }
@@ -88,64 +80,37 @@ impl<'a> Decoder<'a> {
             total_len,
             var_idx_offset,
             data_offset,
-            fixed_cursor: 0,
-            var_cursor: 0,
+            fixed_cursor: Self::HEADER_LEN,
         })
     }
 
     /// Returns the number of variable-length entries in the VarEntry region.
     ///
     /// This is `(data_offset - var_idx_offset) / 4`.
-    pub fn var_count(&self) -> Result<u32, CodecError> {
-        let span = self
-            .data_offset
-            .checked_sub(self.var_idx_offset)
-            .ok_or(CodecError::InvalidLength)?;
-        if span % 4 != 0 {
-            return Err(CodecError::InvalidLength);
-        }
-        Ok(span / 4)
-    }
-
-    /// Internal helper to compute the FixedRegion length in bytes.
-    fn fixed_region_len(&self) -> Result<u32, CodecError> {
-        self.var_idx_offset
-            .checked_sub(Self::HEADER_LEN)
-            .ok_or(CodecError::InvalidLength)
+    pub fn var_count(&self) -> u32 {
+        (self.data_offset - self.var_idx_offset) / 4
     }
 
     /// Reads the next `len` bytes from the FixedRegion, advancing `fixed_cursor`.
     pub fn next_fixed_bytes(&mut self, len: u32) -> Result<&'a [u8], CodecError> {
-        let fixed_len = self.fixed_region_len()?;
-
-        let new_cursor = self
-            .fixed_cursor
-            .checked_add(len)
+        // Remaining bytes in the FixedRegion from the current cursor.
+        let remaining = self
+            .var_idx_offset
+            .checked_sub(self.fixed_cursor)
             .ok_or(CodecError::InvalidLength)?;
-        if new_cursor > fixed_len {
+        if len > remaining {
             return Err(CodecError::InvalidLength);
         }
 
-        let start_abs = Self::HEADER_LEN
-            .checked_add(self.fixed_cursor)
-            .ok_or(CodecError::InvalidLength)?;
+        let start_abs = self.fixed_cursor;
         let end_abs = start_abs
             .checked_add(len)
             .ok_or(CodecError::InvalidLength)?;
 
-        // Must stay within the payload.
-        if end_abs > self.total_len {
-            return Err(CodecError::InvalidLength);
-        }
-
         let start = usize::try_from(start_abs).map_err(|_| CodecError::InvalidLength)?;
         let end = usize::try_from(end_abs).map_err(|_| CodecError::InvalidLength)?;
 
-        if end > self.buf.len() {
-            return Err(CodecError::InvalidLength);
-        }
-
-        self.fixed_cursor = new_cursor;
+        self.fixed_cursor = end_abs;
         Ok(&self.buf[start..end])
     }
 
@@ -157,7 +122,7 @@ impl<'a> Decoder<'a> {
     ///   to determine the end of the slice.
     /// - For the last entry, uses `total_len` as the end of the slice.
     pub fn next_var(&self, idx: u32) -> Result<&'a [u8], CodecError> {
-        let count = self.var_count()?;
+        let count = self.var_count();
         if idx >= count {
             return Err(CodecError::InvalidLength);
         }
