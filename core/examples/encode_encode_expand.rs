@@ -15,13 +15,7 @@ impl EncodeEncodeExpand {
     fn encode(&self) -> Vec<u8> {
         let mut encoder = Encoder::little();
 
-        self.fixed_a.encode_field::<false>(&mut encoder);
-        self.fixed_b.encode_field::<false>(&mut encoder);
-        self.var1_a.encode_field::<false>(&mut encoder);
-        self.fixed_c.encode_field::<false>(&mut encoder);
-        self.var1_b.encode_field::<false>(&mut encoder);
-        self.fixed_d.encode_field::<false>(&mut encoder);
-        self.var2.encode_field::<true>(&mut encoder);
+        self.encode_field::<true>(&mut encoder);
 
         let mut out = Vec::new();
         encoder.finalize(&mut out);
@@ -31,13 +25,37 @@ impl EncodeEncodeExpand {
     fn decode(buf: &[u8]) -> Result<Self, CodecError> {
         let mut decoder = Decoder::new(buf)?;
 
-        let fixed_a = u32::decode_field::<false>(&mut decoder)?;
-        let fixed_b = u16::decode_field::<false>(&mut decoder)?;
-        let var1_a = Vec::<u16>::decode_field::<false>(&mut decoder)?;
-        let fixed_c = u8::decode_field::<false>(&mut decoder)?;
-        let var1_b = Vec::<u32>::decode_field::<false>(&mut decoder)?;
-        let fixed_d = u64::decode_field::<false>(&mut decoder)?;
-        let var2 = Vec::<Vec<u8>>::decode_field::<true>(&mut decoder)?;
+        Self::decode_field::<true>(&mut decoder)
+    }
+}
+
+impl FieldEncode for EncodeEncodeExpand {
+    fn encode_field<const IS_LAST_VAR: bool>(&self, encoder: &mut Encoder) {
+        let _ = IS_LAST_VAR;
+        self.fixed_a.encode_field::<false>(encoder);
+        self.fixed_b.encode_field::<false>(encoder);
+        self.var1_a.encode_field::<false>(encoder);
+        self.fixed_c.encode_field::<false>(encoder);
+        self.var1_b.encode_field::<false>(encoder);
+        self.fixed_d.encode_field::<false>(encoder);
+        self.var2.encode_field::<true>(encoder);
+    }
+}
+
+impl FieldDecode for EncodeEncodeExpand {
+    type View<'a> = EncodeEncodeExpand;
+
+    fn decode_field<'a, const IS_LAST_VAR: bool>(
+        decoder: &mut Decoder<'a>,
+    ) -> Result<Self::View<'a>, CodecError> {
+        let _ = IS_LAST_VAR;
+        let fixed_a = u32::decode_field::<false>(decoder)?;
+        let fixed_b = u16::decode_field::<false>(decoder)?;
+        let var1_a = Vec::<u16>::decode_field::<false>(decoder)?;
+        let fixed_c = u8::decode_field::<false>(decoder)?;
+        let var1_b = Vec::<u32>::decode_field::<false>(decoder)?;
+        let fixed_d = u64::decode_field::<false>(decoder)?;
+        let var2 = Vec::<Vec<u8>>::decode_field::<true>(decoder)?;
 
         Ok(Self {
             fixed_a,
