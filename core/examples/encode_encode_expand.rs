@@ -15,9 +15,9 @@ struct EncodeEncodeExpand {
 struct EncodeEncodeExpandView<'a> {
     fixed_a: u32,
     fixed_b: u16,
-    var1_a: &'a [u16],
+    var1_a: Vec<u16>,
     fixed_c: u8,
-    var1_b: &'a [u16],
+    var1_b: Vec<u16>,
     fixed_d: u64,
     var2: Vec<&'a [u8]>,
 }
@@ -96,9 +96,9 @@ fn main() -> Result<(), CodecError> {
 
     assert_eq!(decoded.fixed_a, value.fixed_a);
     assert_eq!(decoded.fixed_b, value.fixed_b);
-    assert_eq!(decoded.var1_a, value.var1_a.as_slice());
+    assert_eq!(decoded.var1_a, value.var1_a);
     assert_eq!(decoded.fixed_c, value.fixed_c);
-    assert_eq!(decoded.var1_b, value.var1_b.as_slice());
+    assert_eq!(decoded.var1_b, value.var1_b);
     assert_eq!(decoded.fixed_d, value.fixed_d);
     assert_eq!(decoded.var2.len(), value.var2.len());
     for (decoded_item, expected) in decoded.var2.iter().zip(value.var2.iter()) {

@@ -34,39 +34,22 @@ where
     Ok(out)
 }
 
-fn decode_fixed_slice_ref<T>(bytes: &[u8], endian: Endian) -> Result<&[T], CodecError>
-where
-    T: FixedDecode,
-{
-    let length = T::LENGTH;
-    if length == 0 || !bytes.len().is_multiple_of(length) {
-        return Err(CodecError::InvalidLength);
-    }
-
-    if std::mem::size_of::<T>() != length {
-        return Err(CodecError::InvalidLength);
-    }
-
-    let endian_ok = match endian {
-        Endian::Native => true,
-        Endian::Little => cfg!(target_endian = "little"),
-        Endian::Big => cfg!(target_endian = "big"),
-    };
-    if !endian_ok {
-        return Err(CodecError::InvalidLength);
-    }
-
-    let align = std::mem::align_of::<T>();
-    if !(bytes.as_ptr() as usize).is_multiple_of(align) {
-        return Err(CodecError::InvalidLength);
-    }
-
-    let count = bytes.len() / length;
-    let ptr = bytes.as_ptr() as *const T;
-    // SAFETY: alignment, size, and length are validated above.
-    let slice = unsafe { std::slice::from_raw_parts(ptr, count) };
-    Ok(slice)
+fn decode_fixed_slice_u8_ref(bytes: &[u8]) -> Result<&[u8], CodecError> {
+    let _ = bytes;
+    Ok(bytes)
 }
+
+trait NotU8 {}
+
+macro_rules! impl_not_u8_for_primitive {
+    ($($t:ty),* $(,)?) => {
+        $(impl NotU8 for $t {})*
+    };
+}
+
+impl_not_u8_for_primitive!(u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
+
+impl<T, const N: usize> NotU8 for [T; N] where T: FixedDecode {}
 
 macro_rules! impl_field_decode_for_fixed_primitive {
     ($($t:ty),* $(,)?) => {
@@ -111,10 +94,10 @@ where
 
 impl<T> Decode for Vec<T>
 where
-    T: FixedDecode + 'static,
+    T: FixedDecode + NotU8 + 'static,
 {
     type View<'a>
-        = &'a [T]
+        = Vec<T>
     where
         T: 'a;
 
@@ -123,16 +106,16 @@ where
     ) -> Result<Self::View<'a>, CodecError> {
         let _ = IS_LAST_VAR;
         let bytes = decoder.next_var()?;
-        decode_fixed_slice_ref::<T>(bytes, decoder.endian)
+        decode_fixed_slice::<T>(bytes, decoder.endian)
     }
 }
 
 impl<T> Decode for Vec<Vec<T>>
 where
-    T: FixedDecode + 'static,
+    T: FixedDecode + NotU8 + 'static,
 {
     type View<'a>
-        = Vec<&'a [T]>
+        = Vec<Vec<T>>
     where
         T: 'a;
 
@@ -147,7 +130,45 @@ where
         let count = decoder.var_count();
         while decoder.var_cursor < count {
             let bytes = decoder.next_var()?;
-            out.push(decode_fixed_slice_ref::<T>(bytes, decoder.endian)?);
+            out.push(decode_fixed_slice::<T>(bytes, decoder.endian)?);
+        }
+        Ok(out)
+    }
+}
+
+impl Decode for Vec<u8> {
+    type View<'a>
+        = &'a [u8]
+    where
+        u8: 'a;
+
+    fn decode_field<'a, const IS_LAST_VAR: bool>(
+        decoder: &mut Decoder<'a>,
+    ) -> Result<Self::View<'a>, CodecError> {
+        let _ = IS_LAST_VAR;
+        let bytes = decoder.next_var()?;
+        decode_fixed_slice_u8_ref(bytes)
+    }
+}
+
+impl Decode for Vec<Vec<u8>> {
+    type View<'a>
+        = Vec<&'a [u8]>
+    where
+        u8: 'a;
+
+    fn decode_field<'a, const IS_LAST_VAR: bool>(
+        decoder: &mut Decoder<'a>,
+    ) -> Result<Self::View<'a>, CodecError> {
+        if !IS_LAST_VAR {
+            return Err(CodecError::InvalidLength);
+        }
+
+        let mut out = Vec::new();
+        let count = decoder.var_count();
+        while decoder.var_cursor < count {
+            let bytes = decoder.next_var()?;
+            out.push(decode_fixed_slice_u8_ref(bytes)?);
         }
         Ok(out)
     }
@@ -195,10 +216,7 @@ mod tests {
         let mut decoder = Decoder::new(&out).expect("decoder");
 
         let decoded = Vec::<Vec<u16>>::decode_field::<true>(&mut decoder).expect("vec vec");
-        assert_eq!(decoded.len(), outer.len());
-        for (decoded_item, expected) in decoded.iter().zip(outer.iter()) {
-            assert_eq!(*decoded_item, expected.as_slice());
-        }
+        assert_eq!(decoded, outer);
     }
 
     #[test]
