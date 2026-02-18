@@ -6,8 +6,8 @@ pub use encode::FieldEncode;
 mod encoder;
 pub use encoder::Encoder;
 
-mod sealed;
-pub use sealed::*;
+mod data_type;
+pub use data_type::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Endian {
