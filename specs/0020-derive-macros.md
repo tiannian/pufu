@@ -38,6 +38,8 @@ existing field-level specs.
   ```
 - `FLAG` is computed based on the “last variable field” rules below. All other
   fields receive `false`.
+- Fields may be any type that implements `Encode`, including nested structs or
+  container types whose element types also implement `Encode`.
 
 ### Generated `Decode` implementation
 - Signature:
@@ -68,6 +70,8 @@ existing field-level specs.
   ```
 - The resulting struct is constructed with the decoded field values in the same
   order as declared.
+- Fields may be any type that implements `Decode`, including nested structs or
+  container types whose element types also implement `Decode`.
 
 ### Last-variable field selection
 - The derive macro must identify variable-length fields by syntax:
@@ -90,6 +94,16 @@ existing field-level specs.
 - For each field type `T`, the macro adds trait bounds as needed so that:
   - `T: Encode` is available for the generated `Encode` implementation.
   - `T: Decode` is available for the generated `Decode` implementation.
+
+### Test cases
+- Add a test that derives `Encode` and `Decode` for a struct containing a nested
+  field type that itself derives `Encode` and `Decode`.
+- The nested type must include at least one variable-length field (Var1 or
+  Var2), and the outer struct must include at least one additional fixed-length
+  field to ensure ordering is preserved.
+- The test should encode a value, decode it, and assert that the decoded view
+  matches the original value (or view-equivalent data) for both the outer and
+  nested types.
 
 ### Error handling behavior
 - The generated `Decode` implementation propagates `CodecError` exactly as the
