@@ -1,18 +1,19 @@
 # Derive Macros for Encode and Decode
 
 ## Overview
-This specification defines a derive macro that generates `Encode` and `Decode` trait
-implementations for structs by following the same field order and framing rules
-used in manual implementations such as `core/examples/encode_encode_expand.rs`.
-The macro removes boilerplate while preserving the encoding layout and var-length
-constraints defined by the existing field-level specs.
+This specification defines two derive macros that generate `Encode` and `Decode`
+trait implementations for structs by following the same field order and framing
+rules used in manual implementations such as
+`core/examples/encode_encode_expand.rs`. The macros remove boilerplate while
+preserving the encoding layout and var-length constraints defined by the
+existing field-level specs.
 
 ## Detailed Specifications
 
-### Macro name and scope
-- The derive macro is named `Codec` and is invoked as `#[derive(Codec)]`.
-- The macro generates both `Encode` and `Decode` implementations for the target
-  struct.
+### Macro names and scope
+- The derive macros are named `Encode` and `Decode`.
+- `#[derive(Encode)]` generates an `Encode` implementation for the target struct.
+- `#[derive(Decode)]` generates a `Decode` implementation for the target struct.
 - Only structs are supported. Enums and unions must be rejected at macro-expansion
   time with a clear error message.
 
