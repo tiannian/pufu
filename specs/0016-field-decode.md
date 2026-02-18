@@ -37,7 +37,7 @@
 - Fixed-length decoding must maintain the decoder cursor order: after reading a fixed field, the next field sees the cursor advanced by the number of consumed bytes.
 
 ### Variable-length data
-- Variable-length fields that produced `DataMode::Fixed` entries (e.g., `Vec<T>` with fixed elements) must fetch their data via `decoder.next_var(var_idx)` using the next unconsumed variable index. That slice contains the concatenated fixed-size elements and the implementations are responsible for parsing it or reusing it as a borrowed slice.
+- Variable-length fields that produced `DataMode::Fixed` entries (e.g., `Vec<T>` with fixed elements) must fetch their data via `decoder.next_var()` using the next unconsumed variable index. That slice contains the concatenated fixed-size elements and the implementations are responsible for parsing it or reusing it as a borrowed slice.
 - For `DataMode::Var1` values (var2 data), the implementation reads the remaining variable entries (each representing a var1 field) via repeated `decoder.next_var`. Because every var1 entry writes its own offset into `var_length`, the decode path reconstructs the list by slicing the returned data entries in order.
 - Reading var2 data is only permitted when `IS_LAST_VAR == true`, mirroring the encoder panic guard. Attempting to decode a var2 field when additional variable fields follow must produce a `CodecError::InvalidLength` or similar guard that prevents mixing var1 entries belonging to different fields.
 

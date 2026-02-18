@@ -23,7 +23,7 @@ pub struct Decoder<'a> {
     pub var_idx_offset: u32,
     /// Offset (relative to the start of this payload) where the Data region starts.
     pub data_offset: u32,
-    /// Current cursor in the FixedRegion, as an absolute offset from the start of this payload.
+    /// Current cursor in the FixedRegion, as an offset relative to the FixedRegion start.
     pub fixed_cursor: u32,
     /// Current cursor in the VarEntry region (index into var entries).
     pub var_cursor: u32,
@@ -99,7 +99,7 @@ impl<'a> Decoder<'a> {
             total_len,
             var_idx_offset,
             data_offset,
-            fixed_cursor: Self::HEADER_LEN,
+            fixed_cursor: 0,
             var_cursor: 0,
         })
     }
@@ -114,15 +114,21 @@ impl<'a> Decoder<'a> {
     /// Reads the next `len` bytes from the FixedRegion, advancing `fixed_cursor`.
     pub fn next_fixed_bytes(&mut self, len: u32) -> Result<&'a [u8], CodecError> {
         // Remaining bytes in the FixedRegion from the current cursor.
-        let remaining = self
+        let fixed_len = self
             .var_idx_offset
+            .checked_sub(Self::HEADER_LEN)
+            .ok_or(CodecError::InvalidLength)?;
+        let remaining = fixed_len
             .checked_sub(self.fixed_cursor)
             .ok_or(CodecError::InvalidLength)?;
         if len > remaining {
             return Err(CodecError::InvalidLength);
         }
 
-        let start_abs = self.fixed_cursor;
+        let start_abs = self
+            .fixed_cursor
+            .checked_add(Self::HEADER_LEN)
+            .ok_or(CodecError::InvalidLength)?;
         let end_abs = start_abs
             .checked_add(len)
             .ok_or(CodecError::InvalidLength)?;
@@ -130,22 +136,22 @@ impl<'a> Decoder<'a> {
         let start = usize::try_from(start_abs).map_err(|_| CodecError::InvalidLength)?;
         let end = usize::try_from(end_abs).map_err(|_| CodecError::InvalidLength)?;
 
-        self.fixed_cursor = end_abs;
+        self.fixed_cursor = self
+            .fixed_cursor
+            .checked_add(len)
+            .ok_or(CodecError::InvalidLength)?;
         Ok(&self.buf[start..end])
     }
 
-    /// Reads the `idx`-th variable-length value using VarEntry offsets.
+    /// Reads the next variable-length value using VarEntry offsets.
     ///
-    /// - Reads the `idx`-th `u32` from the VarEntry region as an absolute payload
-    ///   offset into the Data region.
-    /// - For all but the last entry, also reads the `(idx + 1)`-th `u32` offset
-    ///   to determine the end of the slice.
+    /// - Reads the current VarEntry `u32` as an absolute payload offset into the Data region.
+    /// - For all but the last entry, also reads the next VarEntry `u32` offset to determine
+    ///   the end of the slice.
     /// - For the last entry, uses `total_len` as the end of the slice.
-    pub fn next_var(&self, idx: u32) -> Result<&'a [u8], CodecError> {
+    pub fn next_var(&mut self) -> Result<&'a [u8], CodecError> {
+        let idx = self.next_var_index()?;
         let count = self.var_count();
-        if idx >= count {
-            return Err(CodecError::InvalidLength);
-        }
 
         let start_abs = self.read_entry(idx)?;
         let end_abs = if idx + 1 < count {
@@ -194,12 +200,6 @@ impl<'a> Decoder<'a> {
             .try_into()
             .map_err(|_| CodecError::InvalidLength)?;
         Ok(u32::from_le_bytes(bytes))
-    }
-
-    /// Reads the next variable-length entry using the internal VarEntry cursor.
-    pub fn next_var_entry(&mut self) -> Result<&'a [u8], CodecError> {
-        let idx = self.next_var_index()?;
-        self.next_var(idx)
     }
 
     /// Returns the next VarEntry index and advances the cursor.

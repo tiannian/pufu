@@ -111,7 +111,7 @@ where
         decoder: &mut Decoder<'a>,
     ) -> Result<Self::View<'a>, CodecError> {
         let _ = IS_LAST_VAR;
-        let bytes = decoder.next_var_entry()?;
+        let bytes = decoder.next_var()?;
         decode_fixed_slice::<T>(bytes)
     }
 }
@@ -135,7 +135,7 @@ where
         let mut out = Vec::new();
         let count = decoder.var_count();
         while decoder.var_cursor < count {
-            let bytes = decoder.next_var_entry()?;
+            let bytes = decoder.next_var()?;
             out.push(decode_fixed_slice::<T>(bytes)?);
         }
         Ok(out)
