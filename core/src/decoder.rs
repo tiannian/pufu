@@ -1,15 +1,14 @@
 //! Decoder for reading binary payloads (no magic or version; see specs/0012-decoder.md).
 
-// use crate::codec::CodecError;
+use crate::CodecError;
 
 /// Decoder for reading binary payloads produced by `Encoder`.
 ///
 /// The layout is:
 /// - `total_len` (u32, LE)
 /// - `var_entry_offset` (u32, LE)
-/// - `data_offset` (u32, LE)
 /// - FixedRegion bytes
-/// - VarEntry region (u32 LE offsets, relative to Data region start)
+/// - VarEntry region (u32 LE offsets, payload-relative)
 /// - Data region bytes
 ///
 /// This decoder operates on a view into the buffer (`buf`) whose first
@@ -26,17 +25,18 @@ pub struct Decoder<'a> {
     pub data_offset: u32,
     /// Current cursor in the FixedRegion, as an absolute offset from the start of this payload.
     pub fixed_cursor: u32,
+    /// Current cursor in the VarEntry region (index into var entries).
+    pub var_cursor: u32,
 }
 
 impl<'a> Decoder<'a> {
-    const HEADER_LEN: u32 = 12;
+    const HEADER_LEN: u32 = 8;
 
     /// Creates a new Decoder by parsing the header from `buf`.
     ///
-    /// Expects the first 12 bytes of `buf` to be:
+    /// Expects the first 8 bytes of `buf` to be:
     /// - `total_len` (u32 LE)
     /// - `var_entry_offset` (u32 LE)
-    /// - `data_offset` (u32 LE)
     ///
     /// Validates that these values describe a layout fully contained within `buf`.
     pub fn new(buf: &'a [u8]) -> Result<Self, CodecError> {
@@ -56,22 +56,41 @@ impl<'a> Decoder<'a> {
                 .map_err(|_| CodecError::InvalidLength)?;
             u32::from_le_bytes(bytes)
         };
-        let data_offset = {
-            let bytes: [u8; 4] = buf[8..12]
+        let total_len_usize = total_len as usize;
+        if total_len_usize > buf.len() {
+            return Err(CodecError::InvalidLength);
+        }
+        if var_idx_offset < Self::HEADER_LEN {
+            return Err(CodecError::InvalidLength);
+        }
+        if var_idx_offset > total_len {
+            return Err(CodecError::InvalidLength);
+        }
+
+        let data_offset = if total_len == var_idx_offset {
+            var_idx_offset
+        } else {
+            let start = usize::try_from(var_idx_offset).map_err(|_| CodecError::InvalidLength)?;
+            let end = start.checked_add(4).ok_or(CodecError::InvalidLength)?;
+            if end > buf.len() {
+                return Err(CodecError::InvalidLength);
+            }
+            let bytes: [u8; 4] = buf[start..end]
                 .try_into()
                 .map_err(|_| CodecError::InvalidLength)?;
             u32::from_le_bytes(bytes)
         };
 
-        let total_len_usize = total_len as usize;
-        if total_len_usize > buf.len() {
-            return Err(CodecError::InvalidLength);
-        }
-
         if data_offset < var_idx_offset {
             return Err(CodecError::InvalidLength);
         }
         if data_offset > total_len {
+            return Err(CodecError::InvalidLength);
+        }
+        if total_len > var_idx_offset && data_offset == var_idx_offset {
+            return Err(CodecError::InvalidLength);
+        }
+        if (data_offset - var_idx_offset) % 4 != 0 {
             return Err(CodecError::InvalidLength);
         }
 
@@ -81,6 +100,7 @@ impl<'a> Decoder<'a> {
             var_idx_offset,
             data_offset,
             fixed_cursor: Self::HEADER_LEN,
+            var_cursor: 0,
         })
     }
 
@@ -174,5 +194,22 @@ impl<'a> Decoder<'a> {
             .try_into()
             .map_err(|_| CodecError::InvalidLength)?;
         Ok(u32::from_le_bytes(bytes))
+    }
+
+    /// Reads the next variable-length entry using the internal VarEntry cursor.
+    pub fn next_var_entry(&mut self) -> Result<&'a [u8], CodecError> {
+        let idx = self.next_var_index()?;
+        self.next_var(idx)
+    }
+
+    /// Returns the next VarEntry index and advances the cursor.
+    pub fn next_var_index(&mut self) -> Result<u32, CodecError> {
+        let count = self.var_count();
+        if self.var_cursor >= count {
+            return Err(CodecError::InvalidLength);
+        }
+        let idx = self.var_cursor;
+        self.var_cursor += 1;
+        Ok(idx)
     }
 }
