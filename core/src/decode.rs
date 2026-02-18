@@ -122,7 +122,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::FieldDecode;
-    use crate::{Decoder, Encoder, FieldEncode};
+    use crate::{CodecError, Decoder, Encoder, Endian, FieldEncode};
 
     #[test]
     fn decode_fixed_and_var1_vec_fixed() {
@@ -162,5 +162,51 @@ mod tests {
 
         let decoded = Vec::<Vec<u16>>::decode_field::<true>(&mut decoder).expect("vec vec");
         assert_eq!(decoded, outer);
+    }
+
+    #[test]
+    fn decode_fixed_array_rejects_short_fixed_region() {
+        let buf = vec![8, 0, 0, 0, 8, 0, 0, 0];
+        let mut decoder = Decoder::new(&buf).expect("decoder");
+        let decoded = <[u16; 2]>::decode_field::<false>(&mut decoder);
+        assert_eq!(decoded, Err(CodecError::InvalidLength));
+    }
+
+    #[test]
+    fn decode_vec_fixed_rejects_non_multiple_length() {
+        let mut buf = Vec::new();
+        let total_len: u32 = 15;
+        let var_idx_offset: u32 = 8;
+        let data_offset: u32 = 12;
+        buf.extend_from_slice(&total_len.to_le_bytes());
+        buf.extend_from_slice(&var_idx_offset.to_le_bytes());
+        buf.extend_from_slice(&data_offset.to_le_bytes());
+        buf.extend_from_slice(&[0x01, 0x02, 0x03]);
+
+        let mut decoder = Decoder::new(&buf).expect("decoder");
+        let decoded = Vec::<u16>::decode_field::<true>(&mut decoder);
+        assert_eq!(decoded, Err(CodecError::InvalidLength));
+    }
+
+    #[test]
+    fn decode_vec_vec_requires_last_var() {
+        let buf = vec![8, 0, 0, 0, 8, 0, 0, 0];
+        let mut decoder = Decoder::new(&buf).expect("decoder");
+        let decoded = Vec::<Vec<u16>>::decode_field::<false>(&mut decoder);
+        assert_eq!(decoded, Err(CodecError::InvalidLength));
+    }
+
+    #[test]
+    fn decode_fixed_big_endian() {
+        let mut encoder = Encoder::big();
+        let fixed_u16: u16 = 0x0102;
+        fixed_u16.encode_field::<true>(&mut encoder);
+
+        let mut out = Vec::new();
+        encoder.finalize(&mut out);
+
+        let mut decoder = Decoder::with_endian(&out, Endian::Big).expect("decoder");
+        let decoded_u16 = u16::decode_field::<true>(&mut decoder).expect("u16");
+        assert_eq!(decoded_u16, fixed_u16);
     }
 }
