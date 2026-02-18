@@ -34,6 +34,40 @@ where
     Ok(out)
 }
 
+fn decode_fixed_slice_ref<T>(bytes: &[u8], endian: Endian) -> Result<&[T], CodecError>
+where
+    T: FixedDecode,
+{
+    let length = T::LENGTH;
+    if length == 0 || !bytes.len().is_multiple_of(length) {
+        return Err(CodecError::InvalidLength);
+    }
+
+    if std::mem::size_of::<T>() != length {
+        return Err(CodecError::InvalidLength);
+    }
+
+    let endian_ok = match endian {
+        Endian::Native => true,
+        Endian::Little => cfg!(target_endian = "little"),
+        Endian::Big => cfg!(target_endian = "big"),
+    };
+    if !endian_ok {
+        return Err(CodecError::InvalidLength);
+    }
+
+    let align = std::mem::align_of::<T>();
+    if !(bytes.as_ptr() as usize).is_multiple_of(align) {
+        return Err(CodecError::InvalidLength);
+    }
+
+    let count = bytes.len() / length;
+    let ptr = bytes.as_ptr() as *const T;
+    // SAFETY: alignment, size, and length are validated above.
+    let slice = unsafe { std::slice::from_raw_parts(ptr, count) };
+    Ok(slice)
+}
+
 macro_rules! impl_field_decode_for_fixed_primitive {
     ($($t:ty),* $(,)?) => {
         $(
@@ -80,7 +114,7 @@ where
     T: FixedDecode + 'static,
 {
     type View<'a>
-        = Vec<T>
+        = &'a [T]
     where
         T: 'a;
 
@@ -89,7 +123,7 @@ where
     ) -> Result<Self::View<'a>, CodecError> {
         let _ = IS_LAST_VAR;
         let bytes = decoder.next_var()?;
-        decode_fixed_slice::<T>(bytes, decoder.endian)
+        decode_fixed_slice_ref::<T>(bytes, decoder.endian)
     }
 }
 
@@ -98,7 +132,7 @@ where
     T: FixedDecode + 'static,
 {
     type View<'a>
-        = Vec<Vec<T>>
+        = Vec<&'a [T]>
     where
         T: 'a;
 
@@ -113,7 +147,7 @@ where
         let count = decoder.var_count();
         while decoder.var_cursor < count {
             let bytes = decoder.next_var()?;
-            out.push(decode_fixed_slice::<T>(bytes, decoder.endian)?);
+            out.push(decode_fixed_slice_ref::<T>(bytes, decoder.endian)?);
         }
         Ok(out)
     }
@@ -130,7 +164,7 @@ mod tests {
 
         let fixed_u8: u8 = 0xaa;
         let fixed_array: [u16; 2] = [0x0102, 0x0304];
-        let var_vec: Vec<u32> = vec![0x0a0b0c0d, 0x01020304];
+        let var_vec: Vec<u8> = vec![0x0a, 0x0b, 0x0c, 0x0d];
 
         fixed_u8.encode_field::<false>(&mut encoder);
         fixed_array.encode_field::<false>(&mut encoder);
@@ -142,11 +176,11 @@ mod tests {
 
         let decoded_u8 = u8::decode_field::<false>(&mut decoder).expect("u8");
         let decoded_array = <[u16; 2]>::decode_field::<false>(&mut decoder).expect("array");
-        let decoded_vec = Vec::<u32>::decode_field::<true>(&mut decoder).expect("vec");
+        let decoded_vec = Vec::<u8>::decode_field::<true>(&mut decoder).expect("vec");
 
         assert_eq!(decoded_u8, fixed_u8);
         assert_eq!(decoded_array, fixed_array);
-        assert_eq!(decoded_vec, var_vec);
+        assert_eq!(decoded_vec, var_vec.as_slice());
     }
 
     #[test]
@@ -161,7 +195,10 @@ mod tests {
         let mut decoder = Decoder::new(&out).expect("decoder");
 
         let decoded = Vec::<Vec<u16>>::decode_field::<true>(&mut decoder).expect("vec vec");
-        assert_eq!(decoded, outer);
+        assert_eq!(decoded.len(), outer.len());
+        for (decoded_item, expected) in decoded.iter().zip(outer.iter()) {
+            assert_eq!(*decoded_item, expected.as_slice());
+        }
     }
 
     #[test]

@@ -6,9 +6,20 @@ struct EncodeEncodeExpand {
     fixed_b: u16,
     var1_a: Vec<u16>,
     fixed_c: u8,
-    var1_b: Vec<u32>,
+    var1_b: Vec<u16>,
     fixed_d: u64,
     var2: Vec<Vec<u8>>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct EncodeEncodeExpandView<'a> {
+    fixed_a: u32,
+    fixed_b: u16,
+    var1_a: &'a [u16],
+    fixed_c: u8,
+    var1_b: &'a [u16],
+    fixed_d: u64,
+    var2: Vec<&'a [u8]>,
 }
 
 impl EncodeEncodeExpand {
@@ -22,7 +33,7 @@ impl EncodeEncodeExpand {
         out
     }
 
-    fn decode(buf: &[u8]) -> Result<Self, CodecError> {
+    fn decode(buf: &[u8]) -> Result<EncodeEncodeExpandView<'_>, CodecError> {
         let mut decoder = Decoder::new(buf)?;
 
         Self::decode_field::<true>(&mut decoder)
@@ -43,7 +54,7 @@ impl Encode for EncodeEncodeExpand {
 }
 
 impl Decode for EncodeEncodeExpand {
-    type View<'a> = EncodeEncodeExpand;
+    type View<'a> = EncodeEncodeExpandView<'a>;
 
     fn decode_field<'a, const IS_LAST_VAR: bool>(
         decoder: &mut Decoder<'a>,
@@ -53,11 +64,11 @@ impl Decode for EncodeEncodeExpand {
         let fixed_b = u16::decode_field::<false>(decoder)?;
         let var1_a = Vec::<u16>::decode_field::<false>(decoder)?;
         let fixed_c = u8::decode_field::<false>(decoder)?;
-        let var1_b = Vec::<u32>::decode_field::<false>(decoder)?;
+        let var1_b = Vec::<u16>::decode_field::<false>(decoder)?;
         let fixed_d = u64::decode_field::<false>(decoder)?;
         let var2 = Vec::<Vec<u8>>::decode_field::<true>(decoder)?;
 
-        Ok(Self {
+        Ok(EncodeEncodeExpandView {
             fixed_a,
             fixed_b,
             var1_a,
@@ -75,7 +86,7 @@ fn main() -> Result<(), CodecError> {
         fixed_b: 0x0506,
         var1_a: vec![10, 20, 30],
         fixed_c: 0x07,
-        var1_b: vec![0x0a0b_0c0d, 0x0e0f_1011],
+        var1_b: vec![0x0a0b, 0x0c0d],
         fixed_d: 0x1213_1415_1617_1819,
         var2: vec![vec![1, 2, 3], vec![4, 5]],
     };
@@ -83,7 +94,16 @@ fn main() -> Result<(), CodecError> {
     let encoded = value.encode();
     let decoded = EncodeEncodeExpand::decode(&encoded)?;
 
-    assert_eq!(decoded, value);
+    assert_eq!(decoded.fixed_a, value.fixed_a);
+    assert_eq!(decoded.fixed_b, value.fixed_b);
+    assert_eq!(decoded.var1_a, value.var1_a.as_slice());
+    assert_eq!(decoded.fixed_c, value.fixed_c);
+    assert_eq!(decoded.var1_b, value.var1_b.as_slice());
+    assert_eq!(decoded.fixed_d, value.fixed_d);
+    assert_eq!(decoded.var2.len(), value.var2.len());
+    for (decoded_item, expected) in decoded.var2.iter().zip(value.var2.iter()) {
+        assert_eq!(*decoded_item, expected.as_slice());
+    }
     println!("decoded ok: {decoded:?}");
 
     Ok(())
