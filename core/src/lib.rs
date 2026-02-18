@@ -6,6 +6,8 @@ pub use encode::FieldEncode;
 mod decode;
 pub use decode::FieldDecode;
 
+mod fixed_decode;
+
 mod encoder;
 pub use encoder::Encoder;
 
