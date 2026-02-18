@@ -1,6 +1,6 @@
 //! Decoder for reading binary payloads (no magic or version; see specs/0012-decoder.md).
 
-use crate::CodecError;
+use crate::{CodecError, Endian};
 
 /// Decoder for reading binary payloads produced by `Encoder`.
 ///
@@ -27,6 +27,8 @@ pub struct Decoder<'a> {
     pub fixed_cursor: u32,
     /// Current cursor in the VarEntry region (index into var entries).
     pub var_cursor: u32,
+    /// Endianness for decoding fixed data.
+    pub endian: Endian,
 }
 
 impl<'a> Decoder<'a> {
@@ -40,6 +42,10 @@ impl<'a> Decoder<'a> {
     ///
     /// Validates that these values describe a layout fully contained within `buf`.
     pub fn new(buf: &'a [u8]) -> Result<Self, CodecError> {
+        Self::with_endian(buf, Endian::Little)
+    }
+
+    pub fn with_endian(buf: &'a [u8], endian: Endian) -> Result<Self, CodecError> {
         if buf.len() < Self::HEADER_LEN as usize {
             return Err(CodecError::InvalidLength);
         }
@@ -101,7 +107,20 @@ impl<'a> Decoder<'a> {
             data_offset,
             fixed_cursor: 0,
             var_cursor: 0,
+            endian,
         })
+    }
+
+    pub fn little(buf: &'a [u8]) -> Result<Self, CodecError> {
+        Self::with_endian(buf, Endian::Little)
+    }
+
+    pub fn big(buf: &'a [u8]) -> Result<Self, CodecError> {
+        Self::with_endian(buf, Endian::Big)
+    }
+
+    pub fn native(buf: &'a [u8]) -> Result<Self, CodecError> {
+        Self::with_endian(buf, Endian::Native)
     }
 
     /// Returns the number of variable-length entries in the VarEntry region.

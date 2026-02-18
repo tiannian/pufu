@@ -1,4 +1,4 @@
-use crate::{CodecError, Decoder};
+use crate::{CodecError, Decoder, Endian};
 
 pub trait FieldDecode {
     type View<'a>
@@ -12,7 +12,7 @@ pub trait FieldDecode {
 
 trait FixedDecode: Sized {
     const LENGTH: usize;
-    fn decode_le(bytes: &[u8]) -> Result<Self, CodecError>;
+    fn decode(bytes: &[u8], endian: Endian) -> Result<Self, CodecError>;
 }
 
 macro_rules! impl_fixed_decode_for_primitive {
@@ -21,11 +21,15 @@ macro_rules! impl_fixed_decode_for_primitive {
             impl FixedDecode for $t {
                 const LENGTH: usize = std::mem::size_of::<$t>();
 
-                fn decode_le(bytes: &[u8]) -> Result<Self, CodecError> {
+                fn decode(bytes: &[u8], endian: Endian) -> Result<Self, CodecError> {
                     let array: [u8; std::mem::size_of::<$t>()] = bytes
                         .try_into()
                         .map_err(|_| CodecError::InvalidLength)?;
-                    Ok(<$t>::from_le_bytes(array))
+                    Ok(match endian {
+                        Endian::Little => <$t>::from_le_bytes(array),
+                        Endian::Big => <$t>::from_be_bytes(array),
+                        Endian::Native => <$t>::from_le_bytes(array),
+                    })
                 }
             }
         )*
@@ -39,10 +43,10 @@ where
     T: FixedDecode,
 {
     let bytes = decoder.next_fixed_bytes(T::LENGTH as u32)?;
-    T::decode_le(bytes)
+    T::decode(bytes, decoder.endian)
 }
 
-fn decode_fixed_slice<T>(bytes: &[u8]) -> Result<Vec<T>, CodecError>
+fn decode_fixed_slice<T>(bytes: &[u8], endian: Endian) -> Result<Vec<T>, CodecError>
 where
     T: FixedDecode,
 {
@@ -52,7 +56,7 @@ where
 
     let mut out = Vec::with_capacity(bytes.len() / T::LENGTH);
     for chunk in bytes.chunks_exact(T::LENGTH) {
-        out.push(T::decode_le(chunk)?);
+        out.push(T::decode(chunk, endian)?);
     }
     Ok(out)
 }
@@ -93,7 +97,7 @@ where
         let _ = IS_LAST_VAR;
         let len = T::LENGTH.checked_mul(N).ok_or(CodecError::InvalidLength)? as u32;
         let bytes = decoder.next_fixed_bytes(len)?;
-        let items = decode_fixed_slice::<T>(bytes)?;
+        let items = decode_fixed_slice::<T>(bytes, decoder.endian)?;
         items.try_into().map_err(|_| CodecError::InvalidLength)
     }
 }
@@ -112,7 +116,7 @@ where
     ) -> Result<Self::View<'a>, CodecError> {
         let _ = IS_LAST_VAR;
         let bytes = decoder.next_var()?;
-        decode_fixed_slice::<T>(bytes)
+        decode_fixed_slice::<T>(bytes, decoder.endian)
     }
 }
 
@@ -136,7 +140,7 @@ where
         let count = decoder.var_count();
         while decoder.var_cursor < count {
             let bytes = decoder.next_var()?;
-            out.push(decode_fixed_slice::<T>(bytes)?);
+            out.push(decode_fixed_slice::<T>(bytes, decoder.endian)?);
         }
         Ok(out)
     }
