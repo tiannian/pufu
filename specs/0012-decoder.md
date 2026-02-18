@@ -31,13 +31,13 @@ Invariants: `total_len` must be less than or equal to `buf.len()`. `var_idx_offs
 ### Methods
 
 - **`var_count(&self) -> u32`**  
-  Returns the number of variable-length entries. Calculated as `(data_offset - var_idx_offset) / 4`. This represents the number of `u32` entries in the VarEntry region.
+  Returns the number of variable-length entries. Calculated as `(data_offset - var_idx_offset) / 4`, matching the length of `var_idx` that the encoder wrote. Decoder consumers, especially `FieldDecode` implementations, must use this count to verify they do not read beyond the available var entries.
 
 - **`next_fixed_bytes(&mut self, len: u32) -> Result<&[u8], CodecError>`**  
-  Reads the next `len` bytes from the FixedRegion starting at `fixed_cursor`. Advances `fixed_cursor` by `len`. Returns a slice of `buf` containing the bytes, or `CodecError` if there are insufficient bytes remaining in the FixedRegion or if the read would exceed buffer bounds.
+  Reads the next `len` bytes from the FixedRegion starting at `fixed_cursor`. Advances `fixed_cursor` by `len`. Returns a slice of `buf` containing the bytes, or `CodecError::InvalidLength` if there are insufficient bytes remaining in the FixedRegion, the read would exceed `data_offset`, or the length is larger than the remaining fixed region budget. Fixed-length fields decoded via `FieldDecode` must match the exact lengths written by `FieldEncode`.
 
-- **`next_var(&self, idx: u32) -> Result<&[u8], CodecError>`**  
-  Reads the `idx`-th variable-length value. Interprets the `idx`-th VarEntry `u32` as an absolute payload offset into the Data region. For all but the last entry, uses the `(idx + 1)`-th offset as the end of the slice; for the last entry, uses `total_len` as the end. Returns a slice of `buf` for the computed range, or `CodecError` if indices or offsets are invalid or out of bounds.
+- **`get_var(&self, idx: u32) -> Result<&[u8], CodecError>`**  
+  Reads the `idx`-th variable-length entry slice. Interprets the `idx`-th VarEntry `u32` as a payload-relative offset into the Data region and uses the next entry (or `total_len` for the final entry) to compute the end offset. Performs bounds checks: the start offset must be at least `data_offset`, not exceed `total_len`, and must not overflow when translated into a slice. Returns a borrowed slice of the Data region; `FieldDecode` implementations consume this slice to reconstruct variable-length fields, including var1/var2 values described in `specs/0016-field-decode.md`. The returned slice lives for `'a`, so callers must not outlive the decoder buffer.
 
 ---
 
