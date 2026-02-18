@@ -80,7 +80,7 @@ impl Encoder {
 #[cfg(test)]
 mod tests {
     use super::Encoder;
-    use crate::FieldEncode;
+    use crate::Encode;
 
     #[test]
     fn encode_fixed_and_var1_vec_fixed() {

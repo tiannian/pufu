@@ -31,13 +31,13 @@ Invariants: `total_len` must be less than or equal to `buf.len()`. `var_idx_offs
 ### Methods
 
 - **`var_count(&self) -> u32`**  
-  Returns the number of variable-length entries present in the VarEntry region. This is `(data_offset - var_idx_offset) / 4` once `data_offset` has been inferred. `FieldDecode` implementations must not request indices greater than or equal to this value.
+  Returns the number of variable-length entries present in the VarEntry region. This is `(data_offset - var_idx_offset) / 4` once `data_offset` has been inferred. `Decode` implementations must not request indices greater than or equal to this value.
 
 - **`next_fixed_bytes(&mut self, len: u32) -> Result<&[u8], CodecError>`**  
-  Reads the next `len` bytes from the FixedRegion starting at `fixed_cursor`. Advances the cursor and returns a slice of `buf`. Returns `CodecError::InvalidLength` if `len` exceeds the remaining bytes before `var_idx_offset`, if arithmetic overflows occur, or if the resulting slice would stray outside the FixedRegion bounds. Fixed-length fields decoded via `FieldDecode` must request exactly the lengths written by `FieldEncode` so the cursor remains aligned with schema order.
+  Reads the next `len` bytes from the FixedRegion starting at `fixed_cursor`. Advances the cursor and returns a slice of `buf`. Returns `CodecError::InvalidLength` if `len` exceeds the remaining bytes before `var_idx_offset`, if arithmetic overflows occur, or if the resulting slice would stray outside the FixedRegion bounds. Fixed-length fields decoded via `Decode` must request exactly the lengths written by `Encode` so the cursor remains aligned with schema order.
 
 - **`next_var(&mut self) -> Result<&[u8], CodecError>`**  
-  Retrieves the next variable-length entry slice using `var_cursor`. Interprets the current VarEntry `u32` (per `specs/0010-binary-serde.md`) as an absolute payload offset into the Data region and uses the next VarEntry offset (or `total_len` for the final entry) to compute the end, then advances `var_cursor` by one. Performs bounds checks: the start must be at least `data_offset`, offsets must not decrease, and the final range must stay inside `[data_offset, total_len]` and `buf.len()`. Returns a borrowed slice tied to `'a`; `FieldDecode` implementations consume it to rebuild var1/var2 payloads without copying when possible.
+  Retrieves the next variable-length entry slice using `var_cursor`. Interprets the current VarEntry `u32` (per `specs/0010-binary-serde.md`) as an absolute payload offset into the Data region and uses the next VarEntry offset (or `total_len` for the final entry) to compute the end, then advances `var_cursor` by one. Performs bounds checks: the start must be at least `data_offset`, offsets must not decrease, and the final range must stay inside `[data_offset, total_len]` and `buf.len()`. Returns a borrowed slice tied to `'a`; `Decode` implementations consume it to rebuild var1/var2 payloads without copying when possible.
 
 ---
 

@@ -1,7 +1,7 @@
 use crate::fixed_decode::FixedDecode;
 use crate::{CodecError, Decoder, Endian};
 
-pub trait FieldDecode {
+pub trait Decode {
     type View<'a>
     where
         Self: 'a;
@@ -37,7 +37,7 @@ where
 macro_rules! impl_field_decode_for_fixed_primitive {
     ($($t:ty),* $(,)?) => {
         $(
-            impl FieldDecode for $t {
+            impl Decode for $t {
                 type View<'a> = $t;
 
                 fn decode_field<'a, const IS_LAST_VAR: bool>(
@@ -55,7 +55,7 @@ impl_field_decode_for_fixed_primitive!(
     u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize
 );
 
-impl<T, const N: usize> FieldDecode for [T; N]
+impl<T, const N: usize> Decode for [T; N]
 where
     T: FixedDecode + 'static,
 {
@@ -75,7 +75,7 @@ where
     }
 }
 
-impl<T> FieldDecode for Vec<T>
+impl<T> Decode for Vec<T>
 where
     T: FixedDecode + 'static,
 {
@@ -93,7 +93,7 @@ where
     }
 }
 
-impl<T> FieldDecode for Vec<Vec<T>>
+impl<T> Decode for Vec<Vec<T>>
 where
     T: FixedDecode + 'static,
 {
@@ -121,8 +121,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::FieldDecode;
-    use crate::{CodecError, Decoder, Encoder, Endian, FieldEncode};
+    use super::Decode;
+    use crate::{CodecError, Decoder, Encode, Encoder, Endian};
 
     #[test]
     fn decode_fixed_and_var1_vec_fixed() {

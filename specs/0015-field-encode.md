@@ -1,7 +1,7 @@
 # Field Encode
 
 ## Overview
-`FieldEncode` defines how a value contributes to the three buffers that make
+`Encode` defines how a value contributes to the three buffers that make
 up the binary framing used throughout the workspace: fixed, data, and
 var_length. It is the contract every serialized field obeys, ensuring
 primitive, array, and collection types write their payloads consistently
@@ -9,10 +9,10 @@ without leaking framing details to callers.
 
 ## Detailed Specifications
 
-### FieldEncode trait
+### Encode trait
 - Signature:
   ```rust
-  pub trait FieldEncode {
+  pub trait Encode {
       fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder);
   }
   ```
@@ -54,4 +54,4 @@ without leaking framing details to callers.
   last variable field"`, preventing mis-framing of subsequent fields.
 
 ## References
-- `core/src/encode.rs` (FieldEncode implementations and Encoder buffers)
+- `core/src/encode.rs` (Encode implementations and Encoder buffers)

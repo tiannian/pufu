@@ -1,10 +1,10 @@
 //! pufu-core - Core library for pufu
 
 mod encode;
-pub use encode::FieldEncode;
+pub use encode::Encode;
 
 mod decode;
-pub use decode::FieldDecode;
+pub use decode::Decode;
 
 mod fixed_decode;
 

@@ -1,14 +1,14 @@
 # Field Decode
 
 ## Overview
-`FieldDecode` describes how individual fields consume bytes from the binary framing laid out by the Encoder/Decoder pair. Whereas `FieldEncode` pushes values into the fixed, data, and var_length regions, field-level decoding must interpret the same regions and expose either borrowed views or owned values without reinterpreting the framing details.
+`Decode` describes how individual fields consume bytes from the binary framing laid out by the Encoder/Decoder pair. Whereas `Encode` pushes values into the fixed, data, and var_length regions, field-level decoding must interpret the same regions and expose either borrowed views or owned values without reinterpreting the framing details.
 
 ## Detailed Specifications
 
-### FieldDecode trait
+### Decode trait
 - Signature:
   ```rust
-  pub trait FieldDecode {
+  pub trait Decode {
       type View<'a>
       where
           Self: 'a;
@@ -32,7 +32,7 @@
 - The const-generic `IS_LAST_VAR` mirrors the encoder so implementations can enforce var2 restrictions. When `IS_LAST_VAR` is `true`, the caller is signaling that no further variable-length fields follow, allowing `DataMode::Var1` values to read the remaining var entries without spilling into subsequent fields.
 
 ### Fixed-length data
-- For `DataMode::Fixed` values (primitives, fixed-size arrays) implementations must call `decoder.next_fixed_bytes(<length>)`, where `<length>` is the number of bytes produced by `FieldEncode` (`T::LENGTH` for `T: DataType`).
+- For `DataMode::Fixed` values (primitives, fixed-size arrays) implementations must call `decoder.next_fixed_bytes(<length>)`, where `<length>` is the number of bytes produced by `Encode` (`T::LENGTH` for `T: DataType`).
 - The returned slice may be interpreted directly (e.g., via `from_le_bytes`) or reborrowed for types that expose references into the payload.
 - Fixed-length decoding must maintain the decoder cursor order: after reading a fixed field, the next field sees the cursor advanced by the number of consumed bytes.
 
@@ -44,7 +44,7 @@
 ### Ordering and error handling
 - The decoder guarantees that the var entry count (`Decoder::var_count`) matches the number of variable-length fields encoded; field decode implementations must not read beyond the available indices.
 - Any violation—requesting more fixed bytes than remain, reading a var entry index that is out of bounds, or encountering inconsistent offsets—is reported through `CodecError` so callers can reject malformed payloads.
-- Because `FieldDecode` implementations borrow directly from the payload, they should not retain references after the decoder buffer is dropped, and the surrounding deserializer must ensure the decoder lives at least as long as any retained `View<'a>` objects.
+- Because `Decode` implementations borrow directly from the payload, they should not retain references after the decoder buffer is dropped, and the surrounding deserializer must ensure the decoder lives at least as long as any retained `View<'a>` objects.
 
 ## References
 - Encoder framing and header layout: `specs/0011-encoder.md`, `core/src/encoder.rs`

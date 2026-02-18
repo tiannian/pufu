@@ -1,4 +1,4 @@
-use pufu_core::{CodecError, Decoder, Encoder, FieldDecode, FieldEncode};
+use pufu_core::{CodecError, Decode, Decoder, Encode, Encoder};
 
 #[derive(Debug, PartialEq, Eq)]
 struct EncodeEncodeExpand {
@@ -29,7 +29,7 @@ impl EncodeEncodeExpand {
     }
 }
 
-impl FieldEncode for EncodeEncodeExpand {
+impl Encode for EncodeEncodeExpand {
     fn encode_field<const IS_LAST_VAR: bool>(&self, encoder: &mut Encoder) {
         let _ = IS_LAST_VAR;
         self.fixed_a.encode_field::<false>(encoder);
@@ -42,7 +42,7 @@ impl FieldEncode for EncodeEncodeExpand {
     }
 }
 
-impl FieldDecode for EncodeEncodeExpand {
+impl Decode for EncodeEncodeExpand {
     type View<'a> = EncodeEncodeExpand;
 
     fn decode_field<'a, const IS_LAST_VAR: bool>(
