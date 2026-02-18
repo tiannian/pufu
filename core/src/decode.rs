@@ -72,9 +72,24 @@ impl_field_decode_for_fixed_primitive!(
     u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize
 );
 
+impl<const N: usize> Decode for [u8; N] {
+    type View<'a>
+        = &'a [u8; N]
+    where
+        u8: 'a;
+
+    fn decode_field<'a, const IS_LAST_VAR: bool>(
+        decoder: &mut Decoder<'a>,
+    ) -> Result<Self::View<'a>, CodecError> {
+        let _ = IS_LAST_VAR;
+        let bytes = decoder.next_fixed_bytes(N as u32)?;
+        bytes.try_into().map_err(|_| CodecError::InvalidLength)
+    }
+}
+
 impl<T, const N: usize> Decode for [T; N]
 where
-    T: FixedDecode + 'static,
+    T: FixedDecode + NotU8 + 'static,
 {
     type View<'a>
         = [T; N]
@@ -202,6 +217,21 @@ mod tests {
         assert_eq!(decoded_u8, fixed_u8);
         assert_eq!(decoded_array, fixed_array);
         assert_eq!(decoded_vec, var_vec.as_slice());
+    }
+
+    #[test]
+    fn decode_fixed_u8_array_view() {
+        let mut encoder = Encoder::little();
+        let fixed_array: [u8; 4] = [0x0a, 0x0b, 0x0c, 0x0d];
+
+        fixed_array.encode_field::<true>(&mut encoder);
+
+        let mut out = Vec::new();
+        encoder.finalize(&mut out);
+        let mut decoder = Decoder::new(&out).expect("decoder");
+
+        let decoded_array = <[u8; 4]>::decode_field::<true>(&mut decoder).expect("array");
+        assert_eq!(decoded_array, &fixed_array);
     }
 
     #[test]
