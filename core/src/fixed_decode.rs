@@ -27,3 +27,23 @@ macro_rules! impl_fixed_decode_for_primitive {
 }
 
 impl_fixed_decode_for_primitive!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
+
+impl<T, const N: usize> FixedDecode for [T; N]
+where
+    T: FixedDecode,
+{
+    const LENGTH: usize = T::LENGTH * N;
+
+    fn decode(bytes: &[u8], endian: Endian) -> Result<Self, CodecError> {
+        if T::LENGTH == 0 || !bytes.len().is_multiple_of(T::LENGTH) {
+            return Err(CodecError::InvalidLength);
+        }
+
+        let mut items = Vec::with_capacity(N);
+        for chunk in bytes.chunks_exact(T::LENGTH) {
+            items.push(T::decode(chunk, endian)?);
+        }
+
+        items.try_into().map_err(|_| CodecError::InvalidLength)
+    }
+}
