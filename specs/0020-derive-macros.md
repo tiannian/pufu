@@ -42,7 +42,7 @@ constraints defined by the existing field-level specs.
 - Signature:
   ```rust
   impl Decode for <Struct> {
-      type View<'a> = <Struct>;
+      type View<'a> = <Struct>View<'a>;
 
       fn decode_field<'a, const IS_LAST_VAR: bool>(
           decoder: &mut Decoder<'a>,
@@ -52,6 +52,13 @@ constraints defined by the existing field-level specs.
       }
   }
   ```
+- The macro generates a companion view struct named `<Struct>View<'a>` in the
+  same scope as the target struct.
+- `<Struct>View<'a>` mirrors the original field names and order, but each field
+  type is the corresponding decode view type: `field: <FieldType as Decode>::View<'a>`.
+- Example mappings: `Vec<u16>` stays `Vec<u16>` because its decode view is owned.
+- Example mappings: `Vec<u8>` becomes `&'a [u8]`.
+- Example mappings: `Vec<Vec<u8>>` becomes `Vec<&'a [u8]>`.
 - For each field, the macro generates a call of the form:
   ```rust
   let <field> = <FieldType>::decode_field::<FLAG>(decoder)?;
