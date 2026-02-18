@@ -54,11 +54,13 @@ constraints defined by the existing field-level specs.
   ```
 - The macro generates a companion view struct named `<Struct>View<'a>` in the
   same scope as the target struct.
-- `<Struct>View<'a>` mirrors the original field names and order, but each field
-  type is the corresponding decode view type: `field: <FieldType as Decode>::View<'a>`.
-- Example mappings: `Vec<u16>` stays `Vec<u16>` because its decode view is owned.
-- Example mappings: `Vec<u8>` becomes `&'a [u8]`.
-- Example mappings: `Vec<Vec<u8>>` becomes `Vec<&'a [u8]>`.
+- `<Struct>View<'a>` mirrors the original field names and order, and each field
+  type is written using the original type’s `Decode::View` associated type:
+  `field: <FieldType as Decode>::View<'a>`.
+- Example mappings (as written in the generated view struct):
+  - `var1_a: <Vec<u16> as Decode>::View<'a>` (decodes to `Vec<u16>`)
+  - `var1_c: <Vec<u8> as Decode>::View<'a>` (decodes to `&'a [u8]`)
+  - `var2: <Vec<Vec<u8>> as Decode>::View<'a>` (decodes to `Vec<&'a [u8]>`)
 - For each field, the macro generates a call of the form:
   ```rust
   let <field> = <FieldType>::decode_field::<FLAG>(decoder)?;
