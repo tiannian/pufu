@@ -14,14 +14,14 @@ struct EncodeEncodeExpand {
 
 #[derive(Debug, PartialEq, Eq)]
 struct EncodeEncodeExpandView<'a> {
-    fixed_a: u32,
-    fixed_b: u16,
-    var1_a: Vec<u16>,
-    var1_c: &'a [u8],
-    fixed_c: u8,
-    var1_b: Vec<u16>,
-    fixed_d: u64,
-    var2: Vec<&'a [u8]>,
+    fixed_a: <u32 as Decode>::View<'a>,
+    fixed_b: <u16 as Decode>::View<'a>,
+    var1_a: <Vec<u16> as Decode>::View<'a>,
+    var1_c: <Vec<u8> as Decode>::View<'a>,
+    fixed_c: <u8 as Decode>::View<'a>,
+    var1_b: <Vec<u16> as Decode>::View<'a>,
+    fixed_d: <u64 as Decode>::View<'a>,
+    var2: <Vec<Vec<u8>> as Decode>::View<'a>,
 }
 
 impl EncodeEncodeExpand {
