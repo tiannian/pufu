@@ -209,4 +209,28 @@ mod tests {
         let decoded_u16 = u16::decode_field::<true>(&mut decoder).expect("u16");
         assert_eq!(decoded_u16, fixed_u16);
     }
+
+    #[test]
+    fn decode_only_fixed_fields() {
+        let mut encoder = Encoder::little();
+        let a: u8 = 0xaa;
+        let b: u32 = 0x01020304;
+        let c: [u16; 2] = [0x0a0b, 0x0c0d];
+
+        a.encode_field::<false>(&mut encoder);
+        b.encode_field::<false>(&mut encoder);
+        c.encode_field::<true>(&mut encoder);
+
+        let mut out = Vec::new();
+        encoder.finalize(&mut out);
+
+        let mut decoder = Decoder::new(&out).expect("decoder");
+        let decoded_a = u8::decode_field::<false>(&mut decoder).expect("a");
+        let decoded_b = u32::decode_field::<false>(&mut decoder).expect("b");
+        let decoded_c = <[u16; 2]>::decode_field::<true>(&mut decoder).expect("c");
+
+        assert_eq!(decoded_a, a);
+        assert_eq!(decoded_b, b);
+        assert_eq!(decoded_c, c);
+    }
 }
