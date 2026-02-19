@@ -44,7 +44,7 @@ impl EncodeEncodeExpand {
 
 impl Encode for EncodeEncodeExpand {
     fn encode_field<const IS_LAST_VAR: bool>(&self, encoder: &mut Encoder) {
-        let mut nested_encoder = Encoder::little();
+        let mut nested_encoder = Encoder::new(encoder.endian);
         self.fixed_a.encode_field::<false>(&mut nested_encoder);
         self.fixed_b.encode_field::<false>(&mut nested_encoder);
         self.var1_a.encode_field::<false>(&mut nested_encoder);
