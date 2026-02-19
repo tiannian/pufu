@@ -44,15 +44,19 @@ impl EncodeEncodeExpand {
 
 impl Encode for EncodeEncodeExpand {
     fn encode_field<const IS_LAST_VAR: bool>(&self, encoder: &mut Encoder) {
-        let _ = IS_LAST_VAR;
-        self.fixed_a.encode_field::<false>(encoder);
-        self.fixed_b.encode_field::<false>(encoder);
-        self.var1_a.encode_field::<false>(encoder);
-        self.var1_c.encode_field::<false>(encoder);
-        self.fixed_c.encode_field::<false>(encoder);
-        self.var1_b.encode_field::<false>(encoder);
-        self.fixed_d.encode_field::<false>(encoder);
-        self.var2.encode_field::<true>(encoder);
+        let mut nested_encoder = Encoder::little();
+        self.fixed_a.encode_field::<false>(&mut nested_encoder);
+        self.fixed_b.encode_field::<false>(&mut nested_encoder);
+        self.var1_a.encode_field::<false>(&mut nested_encoder);
+        self.var1_c.encode_field::<false>(&mut nested_encoder);
+        self.fixed_c.encode_field::<false>(&mut nested_encoder);
+        self.var1_b.encode_field::<false>(&mut nested_encoder);
+        self.fixed_d.encode_field::<false>(&mut nested_encoder);
+        self.var2.encode_field::<true>(&mut nested_encoder);
+
+        let mut nested_payload = Vec::new();
+        nested_encoder.finalize(&mut nested_payload);
+        nested_payload.encode_field::<IS_LAST_VAR>(encoder);
     }
 }
 
@@ -62,15 +66,17 @@ impl Decode for EncodeEncodeExpand {
     fn decode_field<'a, const IS_LAST_VAR: bool>(
         decoder: &mut Decoder<'a>,
     ) -> Result<Self::View<'a>, CodecError> {
-        let _ = IS_LAST_VAR;
-        let fixed_a = u32::decode_field::<false>(decoder)?;
-        let fixed_b = u16::decode_field::<false>(decoder)?;
-        let var1_a = Vec::<u16>::decode_field::<false>(decoder)?;
-        let var1_c = Vec::<u8>::decode_field::<false>(decoder)?;
-        let fixed_c = u8::decode_field::<false>(decoder)?;
-        let var1_b = Vec::<u16>::decode_field::<false>(decoder)?;
-        let fixed_d = u64::decode_field::<false>(decoder)?;
-        let var2 = Vec::<Vec<u8>>::decode_field::<true>(decoder)?;
+        let nested_payload = Vec::<u8>::decode_field::<IS_LAST_VAR>(decoder)?;
+        let mut nested_decoder = Decoder::new(nested_payload)?;
+
+        let fixed_a = u32::decode_field::<false>(&mut nested_decoder)?;
+        let fixed_b = u16::decode_field::<false>(&mut nested_decoder)?;
+        let var1_a = Vec::<u16>::decode_field::<false>(&mut nested_decoder)?;
+        let var1_c = Vec::<u8>::decode_field::<false>(&mut nested_decoder)?;
+        let fixed_c = u8::decode_field::<false>(&mut nested_decoder)?;
+        let var1_b = Vec::<u16>::decode_field::<false>(&mut nested_decoder)?;
+        let fixed_d = u64::decode_field::<false>(&mut nested_decoder)?;
+        let var2 = Vec::<Vec<u8>>::decode_field::<true>(&mut nested_decoder)?;
 
         Ok(EncodeEncodeExpandView {
             fixed_a,
