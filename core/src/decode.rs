@@ -47,7 +47,7 @@ fn decode_fixed_slice_u8_ref(bytes: &[u8]) -> Result<&[u8], CodecError> {
     Ok(bytes)
 }
 
-trait NotU8 {}
+pub trait NotU8 {}
 
 macro_rules! impl_not_u8_for_primitive {
     ($($t:ty),* $(,)?) => {
