@@ -26,7 +26,7 @@ pub fn expand_decode(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
         .zip(fields.field_flags.iter())
         .map(|((ident, ty), flag)| {
             quote! {
-                let #ident = <#ty as ::pufu_core::Decode>::decode_field::<#flag>(decoder)?;
+                let #ident = <#ty as ::pufu_core::Decode>::decode_field::<#flag>(&mut nested_decoder)?;
             }
         });
 
@@ -54,7 +54,10 @@ pub fn expand_decode(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
             fn decode_field<'a, const IS_LAST_VAR: bool>(
                 decoder: &mut ::pufu_core::Decoder<'a>,
             ) -> Result<Self::View<'a>, ::pufu_core::CodecError> {
-                let _ = IS_LAST_VAR;
+                let nested_payload = <Vec<u8> as ::pufu_core::Decode>::decode_field::<IS_LAST_VAR>(
+                    decoder,
+                )?;
+                let mut nested_decoder = ::pufu_core::Decoder::new(nested_payload)?;
                 #(#decode_fields)*
                 Ok(#view_ident {
                     #(#field_idents),*
