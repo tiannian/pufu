@@ -56,7 +56,7 @@ pub fn expand_decode(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
 
             fn decode_field<'a, const IS_LAST_VAR: bool>(
                 decoder: &mut ::pufu_core::Decoder<'a>,
-            ) -> Result<Self::View<'a>, ::pufu_core::CodecError> {
+            ) -> ::core::result::Result<Self::View<'a>, ::pufu_core::CodecError> {
                 let nested_payload = <Vec<u8> as ::pufu_core::Decode>::decode_field::<IS_LAST_VAR>(
                     decoder,
                 )?;
