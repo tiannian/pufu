@@ -47,7 +47,7 @@ pub fn expand_decode(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
     let field_idents = &fields.field_idents;
 
     let expanded = quote! {
-        struct #view_ident #view_impl_generics #view_where_clause {
+        pub struct #view_ident #view_impl_generics #view_where_clause {
             #(#view_fields)*
         }
 
