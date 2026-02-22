@@ -7,6 +7,7 @@ mod decode;
 pub use decode::Decode;
 
 mod fixed_decode;
+pub use fixed_decode::FixedDecode;
 
 mod encoder;
 pub use encoder::Encoder;
