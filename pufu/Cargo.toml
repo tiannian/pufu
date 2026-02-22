@@ -1,6 +1,6 @@
 [package]
 name = "pufu"
-version.workspace = true
+version = "0.1.0"
 edition.workspace = true
 description = "A simple in-memory serialization/deserialization library"
 license.workspace = true
