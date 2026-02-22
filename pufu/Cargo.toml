@@ -1,8 +1,9 @@
 [package]
 name = "pufu"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 description = "Pufu library"
+license.workspace = true
 
 [dependencies]
 pufu-core = { path = "../core" }

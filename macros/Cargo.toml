@@ -1,8 +1,9 @@
 [package]
 name = "pufu-macros"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 description = "Derive macros for pufu"
+license.workspace = true
 
 [lib]
 proc-macro = true
