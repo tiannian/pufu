@@ -105,12 +105,12 @@ impl<'a> Decoder<'a> {
     }
 
     /// Returns the number of variable-length entries. This is `(data_offset - var_idx_offset) / 4`.
-    pub(crate) fn var_count(&self) -> u32 {
+    pub fn var_count(&self) -> u32 {
         (self.data_offset - self.var_idx_offset) / 4
     }
 
     /// Reads the next `len` bytes from the FixedRegion, advancing `fixed_cursor`.
-    pub(crate) fn next_fixed_bytes(&mut self, len: u32) -> Result<&'a [u8], CodecError> {
+    pub fn next_fixed_bytes(&mut self, len: u32) -> Result<&'a [u8], CodecError> {
         let fixed_len = self
             .var_idx_offset
             .checked_sub(Self::HEADER_LEN)
@@ -142,7 +142,7 @@ impl<'a> Decoder<'a> {
 
     /// Reads the next variable-length value using VarEntry offsets.
     /// Each entry is a u32 offset; the slice is from entry[idx] to entry[idx+1] (or total_len for last).
-    pub(crate) fn next_var(&mut self) -> Result<&'a [u8], CodecError> {
+    pub fn next_var(&mut self) -> Result<&'a [u8], CodecError> {
         let idx = self.next_var_index()?;
         let count = self.var_count();
 
@@ -192,7 +192,7 @@ impl<'a> Decoder<'a> {
     }
 
     /// Returns the next VarEntry index and advances the cursor.
-    pub(crate) fn next_var_index(&mut self) -> Result<u32, CodecError> {
+    pub fn next_var_index(&mut self) -> Result<u32, CodecError> {
         let count = self.var_count();
         if self.var_cursor >= count {
             return Err(CodecError::InvalidLength);
