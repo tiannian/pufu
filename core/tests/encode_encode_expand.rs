@@ -1,6 +1,6 @@
 //! Round-trip tests for nested encode/decode expansion.
 
-use pufu_core::{CodecError, Decode, Decoder, Encode, Encoder};
+use pufu_core::{CodecError, Config, Decode, Decoder, Encode, Encoder};
 
 /// Nested payload used to exercise encode expansion.
 #[derive(Debug, PartialEq, Eq)]
@@ -47,18 +47,18 @@ struct EncodeEncodeExpandOuterView<'a> {
 impl EncodeEncodeExpand {
     /// Encode this payload into a pufu binary buffer.
     fn encode(&self) -> Vec<u8> {
-        let mut encoder = Encoder::little();
+        let mut encoder = Encoder::new(Config::default());
 
         self.encode_field::<true>(&mut encoder);
 
         let mut out = Vec::new();
-        encoder.finalize(&mut out);
+        encoder.finalize(&mut out).expect("finalize");
         out
     }
 
     /// Decode this payload from a pufu binary buffer.
     fn decode(buf: &[u8]) -> Result<EncodeEncodeExpandView<'_>, CodecError> {
-        let mut decoder = Decoder::new(buf)?;
+        let mut decoder = Decoder::new(buf, Config::default())?;
 
         Self::decode_field::<true>(&mut decoder)
     }
@@ -66,7 +66,7 @@ impl EncodeEncodeExpand {
 
 impl Encode for EncodeEncodeExpand {
     fn encode_field<const IS_LAST_VAR: bool>(&self, encoder: &mut Encoder) {
-        let mut nested_encoder = Encoder::new(encoder.endian);
+        let mut nested_encoder = Encoder::new(encoder.config().clone());
         self.fixed_a.encode_field::<false>(&mut nested_encoder);
         self.fixed_b.encode_field::<false>(&mut nested_encoder);
         self.var1_a.encode_field::<false>(&mut nested_encoder);
@@ -77,7 +77,9 @@ impl Encode for EncodeEncodeExpand {
         self.var2.encode_field::<true>(&mut nested_encoder);
 
         let mut nested_payload = Vec::new();
-        nested_encoder.finalize(&mut nested_payload);
+        nested_encoder
+            .finalize(&mut nested_payload)
+            .expect("finalize");
         nested_payload.encode_field::<IS_LAST_VAR>(encoder);
     }
 }
@@ -89,7 +91,7 @@ impl Decode for EncodeEncodeExpand {
         decoder: &mut Decoder<'a>,
     ) -> Result<Self::View<'a>, CodecError> {
         let nested_payload = Vec::<u8>::decode_field::<IS_LAST_VAR>(decoder)?;
-        let mut nested_decoder = Decoder::new(nested_payload)?;
+        let mut nested_decoder = Decoder::new(nested_payload, Config::default())?;
 
         let fixed_a = u32::decode_field::<false>(&mut nested_decoder)?;
         let fixed_b = u16::decode_field::<false>(&mut nested_decoder)?;
@@ -116,18 +118,18 @@ impl Decode for EncodeEncodeExpand {
 impl EncodeEncodeExpandOuter {
     /// Encode this payload into a pufu binary buffer.
     fn encode(&self) -> Vec<u8> {
-        let mut encoder = Encoder::little();
+        let mut encoder = Encoder::new(Config::default());
 
         self.encode_field::<true>(&mut encoder);
 
         let mut out = Vec::new();
-        encoder.finalize(&mut out);
+        encoder.finalize(&mut out).expect("finalize");
         out
     }
 
     /// Decode this payload from a pufu binary buffer.
     fn decode(buf: &[u8]) -> Result<EncodeEncodeExpandOuterView<'_>, CodecError> {
-        let mut decoder = Decoder::new(buf)?;
+        let mut decoder = Decoder::new(buf, Config::default())?;
 
         Self::decode_field::<true>(&mut decoder)
     }
@@ -135,13 +137,15 @@ impl EncodeEncodeExpandOuter {
 
 impl Encode for EncodeEncodeExpandOuter {
     fn encode_field<const IS_LAST_VAR: bool>(&self, encoder: &mut Encoder) {
-        let mut nested_encoder = Encoder::new(encoder.endian);
+        let mut nested_encoder = Encoder::new(encoder.config().clone());
         self.prefix.encode_field::<false>(&mut nested_encoder);
         self.inner.encode_field::<false>(&mut nested_encoder);
         self.suffix.encode_field::<true>(&mut nested_encoder);
 
         let mut nested_payload = Vec::new();
-        nested_encoder.finalize(&mut nested_payload);
+        nested_encoder
+            .finalize(&mut nested_payload)
+            .expect("finalize");
         nested_payload.encode_field::<IS_LAST_VAR>(encoder);
     }
 }
@@ -153,7 +157,7 @@ impl Decode for EncodeEncodeExpandOuter {
         decoder: &mut Decoder<'a>,
     ) -> Result<Self::View<'a>, CodecError> {
         let nested_payload = Vec::<u8>::decode_field::<IS_LAST_VAR>(decoder)?;
-        let mut nested_decoder = Decoder::new(nested_payload)?;
+        let mut nested_decoder = Decoder::new(nested_payload, Config::default())?;
 
         let prefix = u8::decode_field::<false>(&mut nested_decoder)?;
         let inner = EncodeEncodeExpand::decode_field::<false>(&mut nested_decoder)?;

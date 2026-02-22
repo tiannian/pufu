@@ -31,11 +31,11 @@ pub fn expand_encode(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
     let expanded = quote! {
         impl #encode_impl_generics ::pufu_core::Encode for #name #encode_ty_generics #encode_where_clause {
             fn encode_field<const IS_LAST_VAR: bool>(&self, encoder: &mut ::pufu_core::Encoder) {
-                let mut nested_encoder = ::pufu_core::Encoder::new(encoder.endian);
+                let mut nested_encoder = ::pufu_core::Encoder::new(encoder.config().clone());
                 #(#encode_fields)*
 
                 let mut nested_payload = Vec::new();
-                nested_encoder.finalize(&mut nested_payload);
+                nested_encoder.finalize(&mut nested_payload).expect("finalize");
                 <Vec<u8> as ::pufu_core::Encode>::encode_field::<IS_LAST_VAR>(
                     &nested_payload,
                     encoder,

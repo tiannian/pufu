@@ -60,7 +60,7 @@ pub fn expand_decode(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
                 let nested_payload = <Vec<u8> as ::pufu_core::Decode>::decode_field::<IS_LAST_VAR>(
                     decoder,
                 )?;
-                let mut nested_decoder = ::pufu_core::Decoder::new(nested_payload)?;
+                let mut nested_decoder = ::pufu_core::Decoder::new(nested_payload, decoder.config().clone())?;
                 #(#decode_fields)*
                 Ok(#view_ident {
                     #(#field_idents),*

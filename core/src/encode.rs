@@ -15,7 +15,7 @@ macro_rules! impl_field_encode_for_fixed_primitive {
         $(
             impl Encode for $t {
                 fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
-                    self.push_fixed_data(&mut e.fixed, &e.endian);
+                    self.push_fixed_data(&mut e.fixed, &e.config.endian);
                 }
             }
         )*
@@ -31,7 +31,7 @@ where
     T: DataType,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
-        self.push_fixed_data(&mut e.fixed, &e.endian);
+        self.push_fixed_data(&mut e.fixed, &e.config.endian);
     }
 }
 
@@ -40,7 +40,7 @@ where
     T: DataType,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
-        self.push_fixed_data(&mut e.fixed, &e.endian);
+        self.push_fixed_data(&mut e.fixed, &e.config.endian);
     }
 }
 
@@ -49,7 +49,7 @@ where
     T: DataType,
 {
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
-        self.push_fixed_data(&mut e.fixed, &e.endian);
+        self.push_fixed_data(&mut e.fixed, &e.config.endian);
     }
 }
 
@@ -62,7 +62,7 @@ where
             DataMode::Fixed => {
                 let mut length = 0;
                 for item in self.iter() {
-                    item.push_fixed_data(&mut e.data, &e.endian);
+                    item.push_fixed_data(&mut e.data, &e.config.endian);
                     length += T::LENGTH;
                 }
                 e.var_length.push(length as u32);
@@ -72,7 +72,7 @@ where
                     panic!("var2 vectors cannot be encoded as last variable field");
                 }
                 for item in self.iter() {
-                    item.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);
+                    item.push_var1_data(&mut e.var_length, &mut e.data, &e.config.endian);
                 }
             }
         }
@@ -106,7 +106,7 @@ where
             DataMode::Fixed => {
                 let mut length = 0;
                 for item in self.iter() {
-                    item.push_fixed_data(&mut e.data, &e.endian);
+                    item.push_fixed_data(&mut e.data, &e.config.endian);
                     length += T::LENGTH;
                 }
                 e.var_length.push(length as u32);
@@ -116,7 +116,7 @@ where
                     panic!("var2 vectors cannot be encoded as last variable field");
                 }
                 for item in self.iter() {
-                    item.push_var1_data(&mut e.var_length, &mut e.data, &e.endian);
+                    item.push_var1_data(&mut e.var_length, &mut e.data, &e.config.endian);
                 }
             }
         }
@@ -135,12 +135,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{Encode, Encoder};
+    use crate::{Config, Encode, Encoder};
 
     #[test]
     #[should_panic(expected = "var2 vectors cannot be encoded as last variable field")]
     fn rejects_var2_when_not_marked_last_var() {
-        let mut encoder = Encoder::little();
+        let mut encoder = Encoder::new(Config::default());
         let value: Vec<Vec<u16>> = vec![vec![1, 2], vec![3]];
         value.encode_field::<false>(&mut encoder);
     }

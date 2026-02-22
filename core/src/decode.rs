@@ -22,7 +22,7 @@ where
     T: FixedDecode,
 {
     let bytes = decoder.next_fixed_bytes(T::LENGTH as u32)?;
-    T::decode(bytes, decoder.endian)
+    T::decode(bytes, decoder.config().endian)
 }
 
 /// Decode a fixed-width slice into owned values.
@@ -110,7 +110,7 @@ where
         let _ = IS_LAST_VAR;
         let len = T::LENGTH.checked_mul(N).ok_or(CodecError::InvalidLength)? as u32;
         let bytes = decoder.next_fixed_bytes(len)?;
-        let items = decode_fixed_slice::<T>(bytes, decoder.endian)?;
+        let items = decode_fixed_slice::<T>(bytes, decoder.config().endian)?;
         items.try_into().map_err(|_| CodecError::InvalidLength)
     }
 }
@@ -129,7 +129,7 @@ where
     ) -> Result<Self::View<'a>, CodecError> {
         let _ = IS_LAST_VAR;
         let bytes = decoder.next_var()?;
-        decode_fixed_slice::<T>(bytes, decoder.endian)
+        decode_fixed_slice::<T>(bytes, decoder.config().endian)
     }
 }
 
@@ -153,7 +153,7 @@ where
         let count = decoder.var_count();
         while decoder.var_cursor < count {
             let bytes = decoder.next_var()?;
-            out.push(decode_fixed_slice::<T>(bytes, decoder.endian)?);
+            out.push(decode_fixed_slice::<T>(bytes, decoder.config().endian)?);
         }
         Ok(out)
     }
@@ -200,11 +200,11 @@ impl Decode for Vec<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::Decode;
-    use crate::{CodecError, Decoder, Encode, Encoder, Endian};
+    use crate::{CodecError, Config, Decoder, Encode, Encoder};
 
     #[test]
     fn decode_fixed_and_var1_vec_fixed() {
-        let mut encoder = Encoder::little();
+        let mut encoder = Encoder::new(Config::default());
 
         let fixed_u8: u8 = 0xaa;
         let fixed_array: [u16; 2] = [0x0102, 0x0304];
@@ -215,8 +215,8 @@ mod tests {
         var_vec.encode_field::<true>(&mut encoder);
 
         let mut out = Vec::new();
-        encoder.finalize(&mut out);
-        let mut decoder = Decoder::new(&out).expect("decoder");
+        encoder.finalize(&mut out).expect("finalize");
+        let mut decoder = Decoder::new(&out, Config::default()).expect("decoder");
 
         let decoded_u8 = u8::decode_field::<false>(&mut decoder).expect("u8");
         let decoded_array = <[u16; 2]>::decode_field::<false>(&mut decoder).expect("array");
@@ -229,14 +229,14 @@ mod tests {
 
     #[test]
     fn decode_fixed_u8_array_view() {
-        let mut encoder = Encoder::little();
+        let mut encoder = Encoder::new(Config::default());
         let fixed_array: [u8; 4] = [0x0a, 0x0b, 0x0c, 0x0d];
 
         fixed_array.encode_field::<true>(&mut encoder);
 
         let mut out = Vec::new();
-        encoder.finalize(&mut out);
-        let mut decoder = Decoder::new(&out).expect("decoder");
+        encoder.finalize(&mut out).expect("finalize");
+        let mut decoder = Decoder::new(&out, Config::default()).expect("decoder");
 
         let decoded_array = <[u8; 4]>::decode_field::<true>(&mut decoder).expect("array");
         assert_eq!(decoded_array, &fixed_array);
@@ -244,14 +244,14 @@ mod tests {
 
     #[test]
     fn decode_var2_vec_vec_fixed() {
-        let mut encoder = Encoder::little();
+        let mut encoder = Encoder::new(Config::default());
         let outer: Vec<Vec<u16>> = vec![vec![1, 2], vec![3]];
 
         outer.encode_field::<true>(&mut encoder);
 
         let mut out = Vec::new();
-        encoder.finalize(&mut out);
-        let mut decoder = Decoder::new(&out).expect("decoder");
+        encoder.finalize(&mut out).expect("finalize");
+        let mut decoder = Decoder::new(&out, Config::default()).expect("decoder");
 
         let decoded = Vec::<Vec<u16>>::decode_field::<true>(&mut decoder).expect("vec vec");
         assert_eq!(decoded, outer);
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn decode_fixed_array_rejects_short_fixed_region() {
         let buf = vec![8, 0, 0, 0, 8, 0, 0, 0];
-        let mut decoder = Decoder::new(&buf).expect("decoder");
+        let mut decoder = Decoder::new(&buf, Config::default()).expect("decoder");
         let decoded = <[u16; 2]>::decode_field::<false>(&mut decoder);
         assert_eq!(decoded, Err(CodecError::InvalidLength));
     }
@@ -276,7 +276,7 @@ mod tests {
         buf.extend_from_slice(&data_offset.to_le_bytes());
         buf.extend_from_slice(&[0x01, 0x02, 0x03]);
 
-        let mut decoder = Decoder::new(&buf).expect("decoder");
+        let mut decoder = Decoder::new(&buf, Config::default()).expect("decoder");
         let decoded = Vec::<u16>::decode_field::<true>(&mut decoder);
         assert_eq!(decoded, Err(CodecError::InvalidLength));
     }
@@ -284,28 +284,28 @@ mod tests {
     #[test]
     fn decode_vec_vec_requires_last_var() {
         let buf = vec![8, 0, 0, 0, 8, 0, 0, 0];
-        let mut decoder = Decoder::new(&buf).expect("decoder");
+        let mut decoder = Decoder::new(&buf, Config::default()).expect("decoder");
         let decoded = Vec::<Vec<u16>>::decode_field::<false>(&mut decoder);
         assert_eq!(decoded, Err(CodecError::InvalidLength));
     }
 
     #[test]
     fn decode_fixed_big_endian() {
-        let mut encoder = Encoder::big();
+        let mut encoder = Encoder::new(Config::builder().big().build());
         let fixed_u16: u16 = 0x0102;
         fixed_u16.encode_field::<true>(&mut encoder);
 
         let mut out = Vec::new();
-        encoder.finalize(&mut out);
+        encoder.finalize(&mut out).expect("finalize");
 
-        let mut decoder = Decoder::with_endian(&out, Endian::Big).expect("decoder");
+        let mut decoder = Decoder::new(&out, Config::builder().big().build()).expect("decoder");
         let decoded_u16 = u16::decode_field::<true>(&mut decoder).expect("u16");
         assert_eq!(decoded_u16, fixed_u16);
     }
 
     #[test]
     fn decode_only_fixed_fields() {
-        let mut encoder = Encoder::little();
+        let mut encoder = Encoder::new(Config::default());
         let a: u8 = 0xaa;
         let b: u32 = 0x01020304;
         let c: [u16; 2] = [0x0a0b, 0x0c0d];
@@ -315,9 +315,9 @@ mod tests {
         c.encode_field::<true>(&mut encoder);
 
         let mut out = Vec::new();
-        encoder.finalize(&mut out);
+        encoder.finalize(&mut out).expect("finalize");
 
-        let mut decoder = Decoder::new(&out).expect("decoder");
+        let mut decoder = Decoder::new(&out, Config::default()).expect("decoder");
         let decoded_a = u8::decode_field::<false>(&mut decoder).expect("a");
         let decoded_b = u32::decode_field::<false>(&mut decoder).expect("b");
         let decoded_c = <[u16; 2]>::decode_field::<true>(&mut decoder).expect("c");

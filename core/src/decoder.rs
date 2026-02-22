@@ -1,68 +1,50 @@
-//! Decoder for reading binary payloads (no magic or version; see specs/0012-decoder.md).
+//! Decoder for reading binary payloads (see specs/0012-decoder.md).
 
-use crate::{CodecError, Endian};
+use crate::{CodecError, Config, Endian};
+
+/// Reads a u32 from the first 4 bytes of `bytes` using the given endianness.
+fn read_u32_endian(bytes: &[u8], endian: Endian) -> Result<u32, CodecError> {
+    let arr: [u8; 4] = bytes
+        .get(0..4)
+        .and_then(|s| s.try_into().ok())
+        .ok_or(CodecError::InvalidLength)?;
+    Ok(match endian {
+        Endian::Little => u32::from_le_bytes(arr),
+        Endian::Big => u32::from_be_bytes(arr),
+        Endian::Native => u32::from_ne_bytes(arr),
+    })
+}
 
 /// Decoder for reading binary payloads produced by `Encoder`.
 ///
-/// The layout is:
-/// - `total_len` (u32, LE)
-/// - `var_entry_offset` (u32, LE)
-/// - FixedRegion bytes
-/// - VarEntry region (u32 LE offsets, payload-relative)
-/// - Data region bytes
-///
-/// This decoder operates on a view into the buffer (`buf`) whose first
-/// bytes are the payload header written by `Encoder::finalize`.
-#[derive(Debug, Clone, Copy)]
+/// Expects `buf` to start with the 8-byte header (total_len, var_entry_offset) as written by
+/// `Encoder::finalize`; i.e. the first byte of `buf` is the first byte after magic+version.
+#[derive(Debug, Clone)]
 pub struct Decoder<'a> {
-    /// Complete buffer that contains the payload.
+    /// Config used for magic, version, and endianness (endian not serialized).
+    pub config: Config,
+    /// Buffer containing the payload (after magic+version).
     pub buf: &'a [u8],
-    /// Total payload length in bytes, as read from the header.
     pub total_len: u32,
-    /// Offset (relative to the start of this payload) where the VarEntry region starts.
     pub var_idx_offset: u32,
-    /// Offset (relative to the start of this payload) where the Data region starts.
     pub data_offset: u32,
-    /// Current cursor in the FixedRegion, as an offset relative to the FixedRegion start.
     pub fixed_cursor: u32,
-    /// Current cursor in the VarEntry region (index into var entries).
     pub var_cursor: u32,
-    /// Endianness for decoding fixed data.
-    pub endian: Endian,
 }
 
 impl<'a> Decoder<'a> {
     const HEADER_LEN: u32 = 8;
 
-    /// Creates a new Decoder by parsing the header from `buf`.
-    ///
-    /// Expects the first 8 bytes of `buf` to be:
-    /// - `total_len` (u32 LE)
-    /// - `var_entry_offset` (u32 LE)
-    ///
-    /// Validates that these values describe a layout fully contained within `buf`.
-    pub fn new(buf: &'a [u8]) -> Result<Self, CodecError> {
-        Self::with_endian(buf, Endian::Little)
-    }
-
-    /// Creates a decoder with an explicit fixed-data endianness.
-    pub fn with_endian(buf: &'a [u8], endian: Endian) -> Result<Self, CodecError> {
+    /// Creates a Decoder by parsing the header from `buf` using `config` for endianness.
+    pub fn new(buf: &'a [u8], config: Config) -> Result<Self, CodecError> {
         if buf.len() < Self::HEADER_LEN as usize {
             return Err(CodecError::InvalidLength);
         }
 
-        let total_len = {
-            let bytes: [u8; 4] = buf[0..4]
-                .try_into()
-                .map_err(|_| CodecError::InvalidLength)?;
-            u32::from_le_bytes(bytes)
-        };
-        let var_idx_offset = {
-            let bytes: [u8; 4] = buf[4..8]
-                .try_into()
-                .map_err(|_| CodecError::InvalidLength)?;
-            u32::from_le_bytes(bytes)
-        };
+        let endian = config.endian;
+        let total_len = read_u32_endian(&buf[0..4], endian)?;
+        let var_idx_offset = read_u32_endian(&buf[4..8], endian)?;
+
         let total_len_usize = total_len as usize;
         if total_len_usize > buf.len() {
             return Err(CodecError::InvalidLength);
@@ -82,10 +64,7 @@ impl<'a> Decoder<'a> {
             if end > buf.len() {
                 return Err(CodecError::InvalidLength);
             }
-            let bytes: [u8; 4] = buf[start..end]
-                .try_into()
-                .map_err(|_| CodecError::InvalidLength)?;
-            u32::from_le_bytes(bytes)
+            read_u32_endian(&buf[start..end], endian)?
         };
 
         if data_offset < var_idx_offset {
@@ -102,41 +81,28 @@ impl<'a> Decoder<'a> {
         }
 
         Ok(Self {
+            config,
             buf,
             total_len,
             var_idx_offset,
             data_offset,
             fixed_cursor: 0,
             var_cursor: 0,
-            endian,
         })
     }
 
-    /// Creates a decoder that interprets fixed values as little-endian.
-    pub fn little(buf: &'a [u8]) -> Result<Self, CodecError> {
-        Self::with_endian(buf, Endian::Little)
+    /// Returns a reference to the Config.
+    pub fn config(&self) -> &Config {
+        &self.config
     }
 
-    /// Creates a decoder that interprets fixed values as big-endian.
-    pub fn big(buf: &'a [u8]) -> Result<Self, CodecError> {
-        Self::with_endian(buf, Endian::Big)
-    }
-
-    /// Creates a decoder that interprets fixed values as native-endian.
-    pub fn native(buf: &'a [u8]) -> Result<Self, CodecError> {
-        Self::with_endian(buf, Endian::Native)
-    }
-
-    /// Returns the number of variable-length entries in the VarEntry region.
-    ///
-    /// This is `(data_offset - var_idx_offset) / 4`.
+    /// Returns the number of variable-length entries. This is `(data_offset - var_idx_offset) / 4`.
     pub fn var_count(&self) -> u32 {
         (self.data_offset - self.var_idx_offset) / 4
     }
 
     /// Reads the next `len` bytes from the FixedRegion, advancing `fixed_cursor`.
     pub fn next_fixed_bytes(&mut self, len: u32) -> Result<&'a [u8], CodecError> {
-        // Remaining bytes in the FixedRegion from the current cursor.
         let fixed_len = self
             .var_idx_offset
             .checked_sub(Self::HEADER_LEN)
@@ -167,11 +133,6 @@ impl<'a> Decoder<'a> {
     }
 
     /// Reads the next variable-length value using VarEntry offsets.
-    ///
-    /// - Reads the current VarEntry `u32` as an absolute payload offset into the Data region.
-    /// - For all but the last entry, also reads the next VarEntry `u32` offset to determine
-    ///   the end of the slice.
-    /// - For the last entry, uses `total_len` as the end of the slice.
     pub fn next_var(&mut self) -> Result<&'a [u8], CodecError> {
         let idx = self.next_var_index()?;
         let count = self.var_count();
@@ -183,7 +144,6 @@ impl<'a> Decoder<'a> {
             self.total_len
         };
 
-        // Offsets must describe a non-empty (or zero-length) slice inside the Data region.
         if start_abs < self.data_offset || end_abs < start_abs || end_abs > self.total_len {
             return Err(CodecError::InvalidLength);
         }
@@ -197,7 +157,6 @@ impl<'a> Decoder<'a> {
         Ok(&self.buf[start..end])
     }
 
-    /// Reads a `u32` VarEntry at the given entry index.
     fn read_entry(&self, entry_idx: u32) -> Result<u32, CodecError> {
         let offset_in_entries = entry_idx.checked_mul(4).ok_or(CodecError::InvalidLength)?;
         let var_entry_abs = self
@@ -208,7 +167,6 @@ impl<'a> Decoder<'a> {
             .checked_add(4)
             .ok_or(CodecError::InvalidLength)?;
 
-        // Entry must be within the VarEntry region and payload.
         if var_entry_end_abs > self.data_offset || var_entry_end_abs > self.total_len {
             return Err(CodecError::InvalidLength);
         }
@@ -219,10 +177,7 @@ impl<'a> Decoder<'a> {
             return Err(CodecError::InvalidLength);
         }
 
-        let bytes: [u8; 4] = self.buf[start..end]
-            .try_into()
-            .map_err(|_| CodecError::InvalidLength)?;
-        Ok(u32::from_le_bytes(bytes))
+        read_u32_endian(&self.buf[start..end], self.config.endian)
     }
 
     /// Returns the next VarEntry index and advances the cursor.

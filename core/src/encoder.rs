@@ -1,94 +1,104 @@
-//! Encoder for building binary payloads (no magic or version; see specs/0011-encoder.md).
+//! Encoder for building binary payloads (see specs/0011-encoder.md).
 
-use crate::Endian;
+use crate::{CodecError, Config, Endian};
 
-/// Encoder for building binary payloads. Accumulates fixed region, variable-entry index
-/// (data-relative offsets), and data region. Does not write magic or version.
+/// Writes `value` as 4 bytes into `out` using the given endianness (not serialized on wire).
+fn write_u32_endian(out: &mut Vec<u8>, value: u32, endian: Endian) {
+    let bytes = match endian {
+        Endian::Little => value.to_le_bytes(),
+        Endian::Big => value.to_be_bytes(),
+        Endian::Native => value.to_ne_bytes(),
+    };
+    out.extend_from_slice(&bytes);
+}
+
+/// Encoder for building binary payloads. Holds Config (magic, version, endian); accumulates
+/// fixed region, variable-entry lengths, and data region.
 #[derive(Debug)]
 pub struct Encoder {
+    /// Config for magic, version, and endianness (endian not serialized).
+    pub config: Config,
     /// Bytes for the FixedRegion.
     pub fixed: Vec<u8>,
-    /// Data-relative offsets; converted to payload-relative on finalize.
+    /// Data-relative lengths; converted to payload-relative offsets on finalize.
     pub var_length: Vec<u32>,
     /// Variable-length data region.
     pub data: Vec<u8>,
-    /// Endianness of the fixed data.
-    pub endian: Endian,
 }
 
 impl Encoder {
-    /// Creates an empty Encoder.
-    pub fn new(endian: Endian) -> Self {
+    /// Creates an Encoder with the given Config and empty regions.
+    pub fn new(config: Config) -> Self {
         Self {
+            config: config.clone(),
             fixed: vec![],
             var_length: vec![],
             data: vec![],
-            endian,
         }
     }
 
-    /// Creates an encoder that writes fixed values in little-endian.
-    pub fn little() -> Self {
-        Self::new(Endian::Little)
+    /// Returns a reference to the Config (e.g. for nested encoders).
+    pub fn config(&self) -> &Config {
+        &self.config
     }
 
-    /// Creates an encoder that writes fixed values in big-endian.
-    pub fn big() -> Self {
-        Self::new(Endian::Big)
-    }
-
-    /// Creates an encoder that writes fixed values in native endianness.
-    pub fn native() -> Self {
-        Self::new(Endian::Native)
-    }
-
-    /// Finalizes the payload into `out` using the pufu layout.
-    pub fn finalize(self, out: &mut Vec<u8>) {
-        // Header fields (excluding magic and version): total_len (4) + var_entry_offset (4) = 8 bytes
+    /// Finalizes the payload into `out` (no magic or version). Uses config endian for u32 fields.
+    pub fn finalize(self, out: &mut Vec<u8>) -> Result<(), CodecError> {
         const HEADER_FIELDS_LEN: u32 = 8;
 
-        // Calculate offsets relative to the first byte after magic+version (i.e., payload start)
-        let fixed_len = self.fixed.len() as u32;
-        let var_entry_len = self.var_length.len() as u32 * 4;
-        let data_len = self.data.len() as u32;
+        let fixed_len = u32::try_from(self.fixed.len()).map_err(|_| CodecError::InvalidLength)?;
+        let var_entry_len = self
+            .var_length
+            .len()
+            .checked_mul(4)
+            .and_then(|n| u32::try_from(n).ok())
+            .ok_or(CodecError::InvalidLength)?;
+        let data_len = u32::try_from(self.data.len()).map_err(|_| CodecError::InvalidLength)?;
 
-        // total_len: from first byte of total_len field to end of payload
-        // Includes: total_len (4) + var_entry_offset (4) + FixedRegion + VarEntry + Data
-        let total_len = HEADER_FIELDS_LEN + fixed_len + var_entry_len + data_len;
+        let total_len = HEADER_FIELDS_LEN
+            .checked_add(fixed_len)
+            .and_then(|n| n.checked_add(var_entry_len))
+            .and_then(|n| n.checked_add(data_len))
+            .ok_or(CodecError::InvalidLength)?;
+        let var_entry_offset = HEADER_FIELDS_LEN
+            .checked_add(fixed_len)
+            .ok_or(CodecError::InvalidLength)?;
+        let data_start_offset = var_entry_offset
+            .checked_add(var_entry_len)
+            .ok_or(CodecError::InvalidLength)?;
 
-        // var_entry_offset: offset from first byte after magic+version to VarEntry region
-        // Includes: total_len (4) + var_entry_offset (4) + FixedRegion
-        let var_entry_offset = HEADER_FIELDS_LEN + fixed_len;
-
-        // Data region starts after VarEntry
-        let data_start_offset = var_entry_offset + var_entry_len;
-
-        // Write header fields (total_len and var_entry_offset)
-        out.extend_from_slice(&total_len.to_le_bytes());
-        out.extend_from_slice(&var_entry_offset.to_le_bytes());
-
-        // Write FixedRegion
+        let endian = self.config.endian;
+        write_u32_endian(out, total_len, endian);
+        write_u32_endian(out, var_entry_offset, endian);
         out.extend_from_slice(&self.fixed);
 
         let mut current_data_offset = data_start_offset;
         for &length in &self.var_length {
-            out.extend_from_slice(&current_data_offset.to_le_bytes());
-            current_data_offset += length;
+            write_u32_endian(out, current_data_offset, endian);
+            current_data_offset = current_data_offset
+                .checked_add(length)
+                .ok_or(CodecError::InvalidLength)?;
         }
-
-        // Write Data region
         out.extend_from_slice(&self.data);
+        Ok(())
+    }
+
+    /// Writes full payload: 4-byte magic, 1-byte version from config, then layout as in `finalize`.
+    pub fn finalize_with_magic_version(self, out: &mut Vec<u8>) -> Result<(), CodecError> {
+        out.extend_from_slice(&self.config.magic);
+        out.push(self.config.version);
+        self.finalize(out)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Encoder;
-    use crate::Encode;
+    use crate::{Config, Encode};
 
     #[test]
     fn encode_fixed_and_var1_vec_fixed() {
-        let mut encoder = Encoder::little();
+        let mut encoder = Encoder::new(Config::default());
 
         let fixed_u8: u8 = 0xaa;
         let fixed_array: [u16; 2] = [0x0102, 0x0304];
@@ -106,7 +116,7 @@ mod tests {
         );
 
         let mut out = Vec::new();
-        encoder.finalize(&mut out);
+        encoder.finalize(&mut out).expect("finalize");
         assert_eq!(
             out,
             vec![
@@ -118,7 +128,7 @@ mod tests {
 
     #[test]
     fn encode_var2_vec_vec_fixed() {
-        let mut encoder = Encoder::little();
+        let mut encoder = Encoder::new(Config::default());
         let mut outer: Vec<Vec<u16>> = vec![vec![1, 2], vec![3]];
 
         (&outer).encode_field::<true>(&mut encoder);
@@ -126,7 +136,7 @@ mod tests {
         assert_eq!(encoder.data, vec![0x01, 0x00, 0x02, 0x00, 0x03, 0x00]);
 
         let mut out = Vec::new();
-        encoder.finalize(&mut out);
+        encoder.finalize(&mut out).expect("finalize");
         assert_eq!(
             out,
             vec![
@@ -135,7 +145,7 @@ mod tests {
             ]
         );
 
-        let mut encoder = Encoder::little();
+        let mut encoder = Encoder::new(Config::default());
         (&mut outer).encode_field::<true>(&mut encoder);
         assert_eq!(encoder.var_length, vec![4, 2]);
         assert_eq!(encoder.data, vec![0x01, 0x00, 0x02, 0x00, 0x03, 0x00]);
@@ -144,7 +154,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "var1 vectors require fixed element types")]
     fn rejects_var3_vec_vec_vec_u8() {
-        let mut encoder = Encoder::little();
+        let mut encoder = Encoder::new(Config::default());
         let value: Vec<Vec<Vec<u8>>> = vec![vec![vec![1]]];
         value.encode_field::<true>(&mut encoder);
     }

@@ -17,10 +17,16 @@ pub use decoder::Decoder;
 mod codec;
 pub use codec::CodecError;
 
+mod config;
+pub use config::{Config, ConfigBuilder};
+
 mod data_type;
 pub use data_type::*;
 
 /// Endianness used when encoding/decoding fixed-width values.
+///
+/// **Not serialized**: Endian is never written to or read from the wire. It is only used
+/// at encode/decode time to control the byte order of multi-byte header and VarEntry fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Endian {
     /// Little-endian byte order.

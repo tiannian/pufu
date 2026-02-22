@@ -1,6 +1,6 @@
 //! Integration tests for derive macros.
 
-use pufu_core::{Decode as DecodeTrait, Decoder, Encode as EncodeTrait, Encoder};
+use pufu_core::{Config, Decode as DecodeTrait, Decoder, Encode as EncodeTrait, Encoder};
 use pufu_macros::{Decode, Encode};
 
 /// Minimal payload with a var1 field.
@@ -17,13 +17,13 @@ fn derive_encode_decode_roundtrip_var1() {
         payload: vec![0xaa, 0xbb, 0xcc],
     };
 
-    let mut encoder = Encoder::little();
+    let mut encoder = Encoder::new(Config::default());
     value.encode_field::<true>(&mut encoder);
 
     let mut out = Vec::new();
-    encoder.finalize(&mut out);
+    encoder.finalize(&mut out).expect("finalize");
 
-    let mut decoder = Decoder::new(&out).expect("decoder");
+    let mut decoder = Decoder::new(&out, Config::default()).expect("decoder");
     let view = SimplePayload::decode_field::<true>(&mut decoder).expect("view");
 
     assert_eq!(view.id, value.id);
@@ -46,13 +46,13 @@ fn derive_encode_decode_roundtrip_var2_last() {
         nested: vec![vec![1, 2], vec![3]],
     };
 
-    let mut encoder = Encoder::little();
+    let mut encoder = Encoder::new(Config::default());
     value.encode_field::<true>(&mut encoder);
 
     let mut out = Vec::new();
-    encoder.finalize(&mut out);
+    encoder.finalize(&mut out).expect("finalize");
 
-    let mut decoder = Decoder::new(&out).expect("decoder");
+    let mut decoder = Decoder::new(&out, Config::default()).expect("decoder");
     let view = NestedPayload::decode_field::<true>(&mut decoder).expect("view");
 
     assert_eq!(view.fixed, value.fixed);
@@ -86,13 +86,13 @@ fn derive_encode_decode_roundtrip_nested() {
         tail: 0x0a0b0c0d,
     };
 
-    let mut encoder = Encoder::little();
+    let mut encoder = Encoder::new(Config::default());
     value.encode_field::<true>(&mut encoder);
 
     let mut out = Vec::new();
-    encoder.finalize(&mut out);
+    encoder.finalize(&mut out).expect("finalize");
 
-    let mut decoder = Decoder::new(&out).expect("decoder");
+    let mut decoder = Decoder::new(&out, Config::default()).expect("decoder");
     let view = OuterPayload::decode_field::<true>(&mut decoder).expect("view");
 
     assert_eq!(view.version, value.version);
@@ -141,11 +141,11 @@ fn derive_encode_matches_encode_encode_expand_fixture() {
         suffix: vec![0x0f, 0xee, 0xdd],
     };
 
-    let mut encoder = Encoder::little();
+    let mut encoder = Encoder::new(Config::default());
     value.encode_field::<true>(&mut encoder);
 
     let mut out = Vec::new();
-    encoder.finalize(&mut out);
+    encoder.finalize(&mut out).expect("finalize");
 
     let expected = "5e000000080000000c000000520000000900000042110000004f0000003e000000170000000403020106050719181716151413122b0000003100000035000000390000003c0000000a0014001e00090807060b0a0d0c01020304050feedd";
     assert_eq!(hex::encode(&out), expected);
