@@ -1,14 +1,22 @@
+//! Shared helpers for derive macro expansion.
+
 use proc_macro2::Span;
 use quote::quote;
 use syn::{spanned::Spanned, DeriveInput, GenericArgument, Type};
 
+/// Collected field metadata used by macro expansions.
 pub struct FieldSpec<'a> {
+    /// Field identifiers in declaration order.
     pub field_idents: Vec<&'a syn::Ident>,
+    /// Field types in declaration order.
     pub field_types: Vec<&'a Type>,
+    /// Field visibility in declaration order.
     pub field_vis: Vec<&'a syn::Visibility>,
+    /// Flags marking which fields are last-variable entries.
     pub field_flags: Vec<proc_macro2::TokenStream>,
 }
 
+/// Collect named fields and compute var-field layout flags.
 pub fn collect_fields<'a>(input: &'a DeriveInput, label: &str) -> syn::Result<FieldSpec<'a>> {
     let fields = match &input.data {
         syn::Data::Struct(data) => match &data.fields {
@@ -106,12 +114,14 @@ pub fn collect_fields<'a>(input: &'a DeriveInput, label: &str) -> syn::Result<Fi
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Encoded field classification based on its type.
 enum VarKind {
     None,
     Var1,
     Var2,
 }
 
+/// Classify a field type as fixed, var1, or var2.
 fn field_var_kind(ty: &Type) -> VarKind {
     let inner = match vec_inner_type(ty) {
         Some(inner) => inner,
@@ -125,6 +135,7 @@ fn field_var_kind(ty: &Type) -> VarKind {
     }
 }
 
+/// Extract the `T` in `Vec<T>` when applicable.
 fn vec_inner_type(ty: &Type) -> Option<&Type> {
     let type_path = match ty {
         Type::Path(type_path) => type_path,
@@ -155,6 +166,7 @@ fn vec_inner_type(ty: &Type) -> Option<&Type> {
     }
 }
 
+/// Add a trait bound to all field types in the given generics.
 pub fn add_trait_bounds(
     generics: &syn::Generics,
     field_types: &[&Type],
@@ -170,6 +182,7 @@ pub fn add_trait_bounds(
     generics
 }
 
+/// Ensure the generics include an `'a` lifetime for view types.
 pub fn add_view_lifetime(generics: &syn::Generics) -> syn::Result<syn::Generics> {
     let mut generics = generics.clone();
     let has_a = generics.lifetimes().any(|lt| lt.lifetime.ident == "a");

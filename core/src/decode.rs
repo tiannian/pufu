@@ -1,16 +1,22 @@
+//! Decoding support for pufu payloads.
+
 use crate::fixed_decode::FixedDecode;
 use crate::{CodecError, Decoder, Endian};
 
+/// Decodes a single field from a decoder and exposes a view into the buffer.
 pub trait Decode {
+    /// View type returned by decoding.
     type View<'a>
     where
         Self: 'a;
 
+    /// Decode this field, marking whether it is the last variable-length field.
     fn decode_field<'a, const IS_LAST_VAR: bool>(
         decoder: &mut Decoder<'a>,
     ) -> Result<Self::View<'a>, CodecError>;
 }
 
+/// Decode one fixed-width value from the fixed region.
 fn decode_fixed_value<'a, T>(decoder: &mut Decoder<'a>) -> Result<T, CodecError>
 where
     T: FixedDecode,
@@ -19,6 +25,7 @@ where
     T::decode(bytes, decoder.endian)
 }
 
+/// Decode a fixed-width slice into owned values.
 fn decode_fixed_slice<T>(bytes: &[u8], endian: Endian) -> Result<Vec<T>, CodecError>
 where
     T: FixedDecode,
@@ -34,6 +41,7 @@ where
     Ok(out)
 }
 
+/// Return a borrowed view for a u8 slice payload.
 fn decode_fixed_slice_u8_ref(bytes: &[u8]) -> Result<&[u8], CodecError> {
     let _ = bytes;
     Ok(bytes)

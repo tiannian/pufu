@@ -1,6 +1,12 @@
+//! Encoding support for pufu payloads.
+
 use crate::{DataMode, DataType, Encoder};
 
+/// Encodes a single field into the provided encoder.
 pub trait Encode {
+    /// Encode this field, marking whether it is the last variable-length field.
+    ///
+    /// The const flag is used to enforce var2 layout constraints at compile time.
     fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder);
 }
 

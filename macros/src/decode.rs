@@ -1,8 +1,11 @@
+//! Decode derive expansion helpers.
+
 use quote::{format_ident, quote};
 use syn::DeriveInput;
 
 use crate::common::{add_trait_bounds, add_view_lifetime, collect_fields};
 
+/// Expand a `#[derive(Decode)]` into the corresponding implementation.
 pub fn expand_decode(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let name = &input.ident;
     let view_ident = format_ident!("{}View", name);

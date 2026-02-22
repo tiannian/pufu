@@ -1,8 +1,11 @@
+//! Encode derive expansion helpers.
+
 use quote::quote;
 use syn::DeriveInput;
 
 use crate::common::{add_trait_bounds, collect_fields};
 
+/// Expand a `#[derive(Encode)]` into the corresponding implementation.
 pub fn expand_encode(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let name = &input.ident;
     let fields = collect_fields(input, "Encode")?;

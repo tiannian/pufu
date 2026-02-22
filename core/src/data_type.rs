@@ -1,20 +1,30 @@
+//! Data type descriptors for pufu encoding.
+
 use crate::Endian;
 
+/// Describes how a type is encoded in the payload.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataMode {
+    /// Fixed-width values that live in the fixed region.
     Fixed,
+    /// Variable-length values with a single layer of offsets.
     Var1,
 }
 
+/// Defines how a type contributes fixed or variable data to an encoder.
 pub trait DataType {
+    /// Encoding mode for this type.
     const MODE: DataMode;
+    /// Fixed byte length, used only for `Fixed` types.
     const LENGTH: usize = 0;
 
+    /// Push fixed-width bytes into the fixed region.
     fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
         let _ = (encoder_fixed, endian);
         panic!("push_fixed_data called for non-fixed data type");
     }
 
+    /// Push variable-length bytes into the data region and record length.
     fn push_var1_data(&self, var_length: &mut Vec<u32>, data: &mut Vec<u8>, endian: &Endian) {
         let _ = (var_length, data, endian);
         panic!("push_var1_data called for fixed data type");

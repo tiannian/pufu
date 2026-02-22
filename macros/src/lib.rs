@@ -8,6 +8,7 @@ mod decode;
 mod encode;
 
 #[proc_macro_derive(Encode)]
+/// Derive `pufu_core::Encode` for named-field structs.
 pub fn derive_encode(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -20,6 +21,7 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_derive(Decode)]
+/// Derive `pufu_core::Decode` for named-field structs.
 pub fn derive_decode(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 

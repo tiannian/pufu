@@ -27,18 +27,22 @@ impl Encoder {
         }
     }
 
+    /// Creates an encoder that writes fixed values in little-endian.
     pub fn little() -> Self {
         Self::new(Endian::Little)
     }
 
+    /// Creates an encoder that writes fixed values in big-endian.
     pub fn big() -> Self {
         Self::new(Endian::Big)
     }
 
+    /// Creates an encoder that writes fixed values in native endianness.
     pub fn native() -> Self {
         Self::new(Endian::Native)
     }
 
+    /// Finalizes the payload into `out` using the pufu layout.
     pub fn finalize(self, out: &mut Vec<u8>) {
         // Header fields (excluding magic and version): total_len (4) + var_entry_offset (4) = 8 bytes
         const HEADER_FIELDS_LEN: u32 = 8;

@@ -1,5 +1,9 @@
+//! Codec error types for pufu payloads.
+
+/// Errors returned by encoding/decoding operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CodecError {
+    /// Input lengths or offsets do not match the expected layout.
     InvalidLength,
 }
 

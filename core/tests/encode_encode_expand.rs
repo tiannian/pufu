@@ -1,5 +1,8 @@
+//! Round-trip tests for nested encode/decode expansion.
+
 use pufu_core::{CodecError, Decode, Decoder, Encode, Encoder};
 
+/// Nested payload used to exercise encode expansion.
 #[derive(Debug, PartialEq, Eq)]
 struct EncodeEncodeExpand {
     fixed_a: u32,
@@ -12,6 +15,7 @@ struct EncodeEncodeExpand {
     var2: Vec<Vec<u8>>,
 }
 
+/// Decoded view of `EncodeEncodeExpand`.
 #[derive(Debug, PartialEq, Eq)]
 struct EncodeEncodeExpandView<'a> {
     fixed_a: <u32 as Decode>::View<'a>,
@@ -24,6 +28,7 @@ struct EncodeEncodeExpandView<'a> {
     var2: <Vec<Vec<u8>> as Decode>::View<'a>,
 }
 
+/// Outer wrapper used for nested encoding.
 #[derive(Debug, PartialEq, Eq)]
 struct EncodeEncodeExpandOuter {
     prefix: u8,
@@ -31,6 +36,7 @@ struct EncodeEncodeExpandOuter {
     suffix: Vec<u8>,
 }
 
+/// Decoded view of `EncodeEncodeExpandOuter`.
 #[derive(Debug, PartialEq, Eq)]
 struct EncodeEncodeExpandOuterView<'a> {
     prefix: <u8 as Decode>::View<'a>,
@@ -39,6 +45,7 @@ struct EncodeEncodeExpandOuterView<'a> {
 }
 
 impl EncodeEncodeExpand {
+    /// Encode this payload into a pufu binary buffer.
     fn encode(&self) -> Vec<u8> {
         let mut encoder = Encoder::little();
 
@@ -49,6 +56,7 @@ impl EncodeEncodeExpand {
         out
     }
 
+    /// Decode this payload from a pufu binary buffer.
     fn decode(buf: &[u8]) -> Result<EncodeEncodeExpandView<'_>, CodecError> {
         let mut decoder = Decoder::new(buf)?;
 
@@ -106,6 +114,7 @@ impl Decode for EncodeEncodeExpand {
 }
 
 impl EncodeEncodeExpandOuter {
+    /// Encode this payload into a pufu binary buffer.
     fn encode(&self) -> Vec<u8> {
         let mut encoder = Encoder::little();
 
@@ -116,6 +125,7 @@ impl EncodeEncodeExpandOuter {
         out
     }
 
+    /// Decode this payload from a pufu binary buffer.
     fn decode(buf: &[u8]) -> Result<EncodeEncodeExpandOuterView<'_>, CodecError> {
         let mut decoder = Decoder::new(buf)?;
 

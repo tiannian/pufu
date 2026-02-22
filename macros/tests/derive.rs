@@ -1,6 +1,9 @@
+//! Integration tests for derive macros.
+
 use pufu_core::{Decode as DecodeTrait, Decoder, Encode as EncodeTrait, Encoder};
 use pufu_macros::{Decode, Encode};
 
+/// Minimal payload with a var1 field.
 #[derive(Encode, Decode)]
 struct SimplePayload {
     id: u16,
@@ -28,6 +31,7 @@ fn derive_encode_decode_roundtrip_var1() {
 }
 
 #[derive(Encode, Decode)]
+/// Payload that includes a var2 field (Vec<Vec<T>>).
 struct NestedPayload {
     fixed: u8,
     payload: Vec<u8>,
@@ -57,12 +61,14 @@ fn derive_encode_decode_roundtrip_var2_last() {
 }
 
 #[derive(Encode, Decode)]
+/// Inner payload for nested-struct test.
 struct InnerPayload {
     tag: u16,
     data: Vec<u8>,
 }
 
 #[derive(Encode, Decode)]
+/// Outer payload that nests another derived struct.
 struct OuterPayload {
     version: u8,
     inner: InnerPayload,
@@ -96,6 +102,7 @@ fn derive_encode_decode_roundtrip_nested() {
 }
 
 #[derive(Encode, Decode)]
+/// Fixture payload matching the core encode/expand test.
 struct EncodeEncodeExpand {
     fixed_a: u32,
     fixed_b: u16,
@@ -108,6 +115,7 @@ struct EncodeEncodeExpand {
 }
 
 #[derive(Encode, Decode)]
+/// Outer wrapper for the encode/expand fixture.
 struct EncodeEncodeExpandOuter {
     prefix: u8,
     inner: EncodeEncodeExpand,

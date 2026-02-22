@@ -1,7 +1,12 @@
+//! Fixed-width decoding helpers for pufu payloads.
+
 use crate::{CodecError, Endian};
 
+/// Decodes fixed-width values from a byte slice.
 pub(crate) trait FixedDecode: Sized {
+    /// Fixed byte length for this type.
     const LENGTH: usize;
+    /// Decode from a fixed-length byte slice with the given endianness.
     fn decode(bytes: &[u8], endian: Endian) -> Result<Self, CodecError>;
 }
 

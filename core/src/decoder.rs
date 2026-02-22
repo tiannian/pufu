@@ -45,6 +45,7 @@ impl<'a> Decoder<'a> {
         Self::with_endian(buf, Endian::Little)
     }
 
+    /// Creates a decoder with an explicit fixed-data endianness.
     pub fn with_endian(buf: &'a [u8], endian: Endian) -> Result<Self, CodecError> {
         if buf.len() < Self::HEADER_LEN as usize {
             return Err(CodecError::InvalidLength);
@@ -111,14 +112,17 @@ impl<'a> Decoder<'a> {
         })
     }
 
+    /// Creates a decoder that interprets fixed values as little-endian.
     pub fn little(buf: &'a [u8]) -> Result<Self, CodecError> {
         Self::with_endian(buf, Endian::Little)
     }
 
+    /// Creates a decoder that interprets fixed values as big-endian.
     pub fn big(buf: &'a [u8]) -> Result<Self, CodecError> {
         Self::with_endian(buf, Endian::Big)
     }
 
+    /// Creates a decoder that interprets fixed values as native-endian.
     pub fn native(buf: &'a [u8]) -> Result<Self, CodecError> {
         Self::with_endian(buf, Endian::Native)
     }
