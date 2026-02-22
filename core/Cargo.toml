@@ -4,3 +4,6 @@ version = "0.1.1"
 edition.workspace = true
 description = "Core for the pufu in-memory serialization/deserialization library"
 license.workspace = true
+
+[dev-dependencies]
+hex = "0.4"

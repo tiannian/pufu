@@ -191,6 +191,7 @@ fn encode_encode_expand_roundtrip_nested() -> Result<(), CodecError> {
     }
 
     let encoded = value.encode();
+    println!("encode_encode_expand_outer: {}", hex::encode(&encoded));
     let decoded = EncodeEncodeExpandOuter::decode(&encoded)?;
 
     assert_eq!(decoded.prefix, value.prefix);

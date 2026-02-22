@@ -94,3 +94,51 @@ fn derive_encode_decode_roundtrip_nested() {
     assert_eq!(view.inner.data, value.inner.data.as_slice());
     assert_eq!(view.tail, value.tail);
 }
+
+#[derive(Encode, Decode)]
+struct EncodeEncodeExpand {
+    fixed_a: u32,
+    fixed_b: u16,
+    var1_a: Vec<u16>,
+    var1_c: Vec<u8>,
+    fixed_c: u8,
+    var1_b: Vec<u16>,
+    fixed_d: u64,
+    var2: Vec<Vec<u8>>,
+}
+
+#[derive(Encode, Decode)]
+struct EncodeEncodeExpandOuter {
+    prefix: u8,
+    inner: EncodeEncodeExpand,
+    suffix: Vec<u8>,
+}
+
+#[test]
+fn derive_encode_matches_encode_encode_expand_fixture() {
+    let inner = EncodeEncodeExpand {
+        fixed_a: 0x0102_0304,
+        fixed_b: 0x0506,
+        var1_a: vec![10, 20, 30],
+        var1_c: vec![9, 8, 7, 6],
+        fixed_c: 0x07,
+        var1_b: vec![0x0a0b, 0x0c0d],
+        fixed_d: 0x1213_1415_1617_1819,
+        var2: vec![vec![1, 2, 3], vec![4, 5]],
+    };
+
+    let value = EncodeEncodeExpandOuter {
+        prefix: 0x42,
+        inner,
+        suffix: vec![0x0f, 0xee, 0xdd],
+    };
+
+    let mut encoder = Encoder::little();
+    value.encode_field::<true>(&mut encoder);
+
+    let mut out = Vec::new();
+    encoder.finalize(&mut out);
+
+    let expected = "5e000000080000000c000000520000000900000042110000004f0000003e000000170000000403020106050719181716151413122b0000003100000035000000390000003c0000000a0014001e00090807060b0a0d0c01020304050feedd";
+    assert_eq!(hex::encode(&out), expected);
+}
