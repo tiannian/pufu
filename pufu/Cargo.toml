@@ -4,6 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 description = "A simple in-memory serialization/deserialization library"
 license.workspace = true
+readme = "../README.md"
 
 [dependencies]
 pufu-core.workspace = true
