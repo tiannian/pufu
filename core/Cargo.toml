@@ -1,6 +1,6 @@
 [package]
 name = "pufu-core"
-version = "0.1.1"
+version = "0.1.2"
 edition.workspace = true
 description = "Core for the pufu in-memory serialization/deserialization library"
 license.workspace = true
