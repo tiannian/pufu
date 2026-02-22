@@ -1,10 +1,10 @@
 [package]
 name = "pufu"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 description = "A simple in-memory serialization/deserialization library"
 license.workspace = true
 
 [dependencies]
-pufu-core = { path = "../core" }
-pufu-macros = { path = "../macros" }
+pufu-core.workspace = true
+pufu-macros.workspace = true
