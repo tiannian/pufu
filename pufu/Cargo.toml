@@ -1,0 +1,9 @@
+[package]
+name = "pufu"
+version.workspace = true
+edition.workspace = true
+description = "Pufu library"
+
+[dependencies]
+pufu-core = { path = "../core" }
+pufu-macros = { path = "../macros" }

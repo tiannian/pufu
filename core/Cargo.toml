@@ -3,6 +3,3 @@ name = "pufu-core"
 version.workspace = true
 edition.workspace = true
 description = "Core library for pufu"
-
-[dependencies]
-pufu-macros = { path = "../macros" }

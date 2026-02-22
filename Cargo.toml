@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "core",
     "macros",
+    "pufu",
 ]
 
 [workspace.package]
