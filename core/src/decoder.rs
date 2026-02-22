@@ -1,6 +1,6 @@
 //! Decoder for reading binary payloads (see specs/0012-decoder.md).
 
-use crate::{CodecError, Config, Endian};
+use crate::{CodecError, Config, Decode, Endian};
 
 /// Reads a u32 from the first 4 bytes of `bytes` using the given endianness.
 fn read_u32_endian(bytes: &[u8], endian: Endian) -> Result<u32, CodecError> {
@@ -22,14 +22,19 @@ fn read_u32_endian(bytes: &[u8], endian: Endian) -> Result<u32, CodecError> {
 #[derive(Debug, Clone)]
 pub struct Decoder<'a> {
     /// Config used for magic, version, and endianness (endian not serialized).
-    pub config: Config,
+    pub(crate) config: Config,
     /// Buffer containing the payload (after magic+version).
-    pub buf: &'a [u8],
-    pub total_len: u32,
-    pub var_idx_offset: u32,
-    pub data_offset: u32,
-    pub fixed_cursor: u32,
-    pub var_cursor: u32,
+    pub(crate) buf: &'a [u8],
+    /// Total payload length in bytes (from header).
+    pub(crate) total_len: u32,
+    /// Byte offset where the variable-length index table starts.
+    pub(crate) var_idx_offset: u32,
+    /// Byte offset where variable-length data starts (first byte after index table).
+    pub(crate) data_offset: u32,
+    /// Current read position within the fixed region (relative to end of header).
+    pub(crate) fixed_cursor: u32,
+    /// Current index into the variable-length entry table.
+    pub(crate) var_cursor: u32,
 }
 
 impl<'a> Decoder<'a> {
@@ -45,6 +50,7 @@ impl<'a> Decoder<'a> {
         let total_len = read_u32_endian(&buf[0..4], endian)?;
         let var_idx_offset = read_u32_endian(&buf[4..8], endian)?;
 
+        // Validate header: total_len must fit in buf; var_idx_offset must be after header and within total.
         let total_len_usize = total_len as usize;
         if total_len_usize > buf.len() {
             return Err(CodecError::InvalidLength);
@@ -56,6 +62,7 @@ impl<'a> Decoder<'a> {
             return Err(CodecError::InvalidLength);
         }
 
+        // data_offset: when no var entries, equals var_idx_offset; otherwise read first u32 from index table.
         let data_offset = if total_len == var_idx_offset {
             var_idx_offset
         } else {
@@ -67,6 +74,7 @@ impl<'a> Decoder<'a> {
             read_u32_endian(&buf[start..end], endian)?
         };
 
+        // data_offset must follow var table and align; index table length must be multiple of 4.
         if data_offset < var_idx_offset {
             return Err(CodecError::InvalidLength);
         }
@@ -97,12 +105,12 @@ impl<'a> Decoder<'a> {
     }
 
     /// Returns the number of variable-length entries. This is `(data_offset - var_idx_offset) / 4`.
-    pub fn var_count(&self) -> u32 {
+    pub(crate) fn var_count(&self) -> u32 {
         (self.data_offset - self.var_idx_offset) / 4
     }
 
     /// Reads the next `len` bytes from the FixedRegion, advancing `fixed_cursor`.
-    pub fn next_fixed_bytes(&mut self, len: u32) -> Result<&'a [u8], CodecError> {
+    pub(crate) fn next_fixed_bytes(&mut self, len: u32) -> Result<&'a [u8], CodecError> {
         let fixed_len = self
             .var_idx_offset
             .checked_sub(Self::HEADER_LEN)
@@ -133,7 +141,8 @@ impl<'a> Decoder<'a> {
     }
 
     /// Reads the next variable-length value using VarEntry offsets.
-    pub fn next_var(&mut self) -> Result<&'a [u8], CodecError> {
+    /// Each entry is a u32 offset; the slice is from entry[idx] to entry[idx+1] (or total_len for last).
+    pub(crate) fn next_var(&mut self) -> Result<&'a [u8], CodecError> {
         let idx = self.next_var_index()?;
         let count = self.var_count();
 
@@ -144,6 +153,7 @@ impl<'a> Decoder<'a> {
             self.total_len
         };
 
+        // Bounds: start/end must be within data region and total_len.
         if start_abs < self.data_offset || end_abs < start_abs || end_abs > self.total_len {
             return Err(CodecError::InvalidLength);
         }
@@ -157,6 +167,7 @@ impl<'a> Decoder<'a> {
         Ok(&self.buf[start..end])
     }
 
+    /// Reads the u32 at entry_idx from the variable-length index table (each entry is 4 bytes).
     fn read_entry(&self, entry_idx: u32) -> Result<u32, CodecError> {
         let offset_in_entries = entry_idx.checked_mul(4).ok_or(CodecError::InvalidLength)?;
         let var_entry_abs = self
@@ -181,7 +192,7 @@ impl<'a> Decoder<'a> {
     }
 
     /// Returns the next VarEntry index and advances the cursor.
-    pub fn next_var_index(&mut self) -> Result<u32, CodecError> {
+    pub(crate) fn next_var_index(&mut self) -> Result<u32, CodecError> {
         let count = self.var_count();
         if self.var_cursor >= count {
             return Err(CodecError::InvalidLength);
@@ -189,5 +200,11 @@ impl<'a> Decoder<'a> {
         let idx = self.var_cursor;
         self.var_cursor += 1;
         Ok(idx)
+    }
+
+    /// Decodes one value of type `T` from the buffer, advancing the decoder cursors.
+    /// Uses `T::decode_field` with top-level flag so fixed and variable regions are read in order.
+    pub fn decode<T: Decode>(&mut self) -> Result<T::View<'a>, CodecError> {
+        T::decode_field::<true>(self)
     }
 }

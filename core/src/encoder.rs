@@ -17,13 +17,13 @@ fn write_u32_endian(out: &mut Vec<u8>, value: u32, endian: Endian) {
 #[derive(Debug)]
 pub struct Encoder {
     /// Config for magic, version, and endianness (endian not serialized).
-    pub config: Config,
+    pub(crate) config: Config,
     /// Bytes for the FixedRegion.
-    pub fixed: Vec<u8>,
+    pub(crate) fixed: Vec<u8>,
     /// Data-relative lengths; converted to payload-relative offsets on finalize.
-    pub var_length: Vec<u32>,
+    pub(crate) var_length: Vec<u32>,
     /// Variable-length data region.
-    pub data: Vec<u8>,
+    pub(crate) data: Vec<u8>,
 }
 
 impl Encoder {
