@@ -24,6 +24,20 @@ struct EncodeEncodeExpandView<'a> {
     var2: <Vec<Vec<u8>> as Decode>::View<'a>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct EncodeEncodeExpandOuter {
+    prefix: u8,
+    inner: EncodeEncodeExpand,
+    suffix: Vec<u8>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct EncodeEncodeExpandOuterView<'a> {
+    prefix: <u8 as Decode>::View<'a>,
+    inner: <EncodeEncodeExpand as Decode>::View<'a>,
+    suffix: <Vec<u8> as Decode>::View<'a>,
+}
+
 impl EncodeEncodeExpand {
     fn encode(&self) -> Vec<u8> {
         let mut encoder = Encoder::little();
@@ -91,8 +105,60 @@ impl Decode for EncodeEncodeExpand {
     }
 }
 
+impl EncodeEncodeExpandOuter {
+    fn encode(&self) -> Vec<u8> {
+        let mut encoder = Encoder::little();
+
+        self.encode_field::<true>(&mut encoder);
+
+        let mut out = Vec::new();
+        encoder.finalize(&mut out);
+        out
+    }
+
+    fn decode(buf: &[u8]) -> Result<EncodeEncodeExpandOuterView<'_>, CodecError> {
+        let mut decoder = Decoder::new(buf)?;
+
+        Self::decode_field::<true>(&mut decoder)
+    }
+}
+
+impl Encode for EncodeEncodeExpandOuter {
+    fn encode_field<const IS_LAST_VAR: bool>(&self, encoder: &mut Encoder) {
+        let mut nested_encoder = Encoder::new(encoder.endian);
+        self.prefix.encode_field::<false>(&mut nested_encoder);
+        self.inner.encode_field::<false>(&mut nested_encoder);
+        self.suffix.encode_field::<true>(&mut nested_encoder);
+
+        let mut nested_payload = Vec::new();
+        nested_encoder.finalize(&mut nested_payload);
+        nested_payload.encode_field::<IS_LAST_VAR>(encoder);
+    }
+}
+
+impl Decode for EncodeEncodeExpandOuter {
+    type View<'a> = EncodeEncodeExpandOuterView<'a>;
+
+    fn decode_field<'a, const IS_LAST_VAR: bool>(
+        decoder: &mut Decoder<'a>,
+    ) -> Result<Self::View<'a>, CodecError> {
+        let nested_payload = Vec::<u8>::decode_field::<IS_LAST_VAR>(decoder)?;
+        let mut nested_decoder = Decoder::new(nested_payload)?;
+
+        let prefix = u8::decode_field::<false>(&mut nested_decoder)?;
+        let inner = EncodeEncodeExpand::decode_field::<false>(&mut nested_decoder)?;
+        let suffix = Vec::<u8>::decode_field::<true>(&mut nested_decoder)?;
+
+        Ok(EncodeEncodeExpandOuterView {
+            prefix,
+            inner,
+            suffix,
+        })
+    }
+}
+
 fn main() -> Result<(), CodecError> {
-    let value = EncodeEncodeExpand {
+    let inner = EncodeEncodeExpand {
         fixed_a: 0x0102_0304,
         fixed_b: 0x0506,
         var1_a: vec![10, 20, 30],
@@ -103,20 +169,28 @@ fn main() -> Result<(), CodecError> {
         var2: vec![vec![1, 2, 3], vec![4, 5]],
     };
 
-    let encoded = value.encode();
-    let decoded = EncodeEncodeExpand::decode(&encoded)?;
+    let value = EncodeEncodeExpandOuter {
+        prefix: 0x42,
+        inner,
+        suffix: vec![0x0f, 0xee, 0xdd],
+    };
 
-    assert_eq!(decoded.fixed_a, value.fixed_a);
-    assert_eq!(decoded.fixed_b, value.fixed_b);
-    assert_eq!(decoded.var1_a, value.var1_a);
-    assert_eq!(decoded.var1_c, value.var1_c.as_slice());
-    assert_eq!(decoded.fixed_c, value.fixed_c);
-    assert_eq!(decoded.var1_b, value.var1_b);
-    assert_eq!(decoded.fixed_d, value.fixed_d);
-    assert_eq!(decoded.var2.len(), value.var2.len());
-    for (decoded_item, expected) in decoded.var2.iter().zip(value.var2.iter()) {
+    let encoded = value.encode();
+    let decoded = EncodeEncodeExpandOuter::decode(&encoded)?;
+
+    assert_eq!(decoded.prefix, value.prefix);
+    assert_eq!(decoded.inner.fixed_a, value.inner.fixed_a);
+    assert_eq!(decoded.inner.fixed_b, value.inner.fixed_b);
+    assert_eq!(decoded.inner.var1_a, value.inner.var1_a);
+    assert_eq!(decoded.inner.var1_c, value.inner.var1_c.as_slice());
+    assert_eq!(decoded.inner.fixed_c, value.inner.fixed_c);
+    assert_eq!(decoded.inner.var1_b, value.inner.var1_b);
+    assert_eq!(decoded.inner.fixed_d, value.inner.fixed_d);
+    assert_eq!(decoded.inner.var2.len(), value.inner.var2.len());
+    for (decoded_item, expected) in decoded.inner.var2.iter().zip(value.inner.var2.iter()) {
         assert_eq!(*decoded_item, expected.as_slice());
     }
+    assert_eq!(decoded.suffix, value.suffix.as_slice());
     println!("decoded ok: {decoded:?}");
 
     Ok(())
