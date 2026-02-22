@@ -2,7 +2,7 @@
 name = "pufu"
 version.workspace = true
 edition.workspace = true
-description = "Pufu library"
+description = "A simple in-memory serialization/deserialization library"
 license.workspace = true
 
 [dependencies]

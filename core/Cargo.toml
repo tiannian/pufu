@@ -2,5 +2,5 @@
 name = "pufu-core"
 version.workspace = true
 edition.workspace = true
-description = "Core library for pufu"
+description = "Core for the pufu in-memory serialization/deserialization library"
 license.workspace = true
