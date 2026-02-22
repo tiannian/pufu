@@ -158,4 +158,49 @@ mod tests {
         let value: Vec<Vec<Vec<u8>>> = vec![vec![vec![1]]];
         value.encode_field::<true>(&mut encoder);
     }
+
+    #[test]
+    fn finalize_with_magic_version_prepends_magic_and_version() {
+        let mut encoder = Encoder::new(Config::default());
+        let fixed_u8: u8 = 0xaa;
+        let fixed_array: [u16; 2] = [0x0102, 0x0304];
+        let var_vec: Vec<u32> = vec![0x0a0b0c0d, 0x01020304];
+
+        fixed_u8.encode_field::<false>(&mut encoder);
+        fixed_array.encode_field::<false>(&mut encoder);
+        var_vec.encode_field::<true>(&mut encoder);
+
+        let mut out = Vec::new();
+        encoder
+            .finalize_with_magic_version(&mut out)
+            .expect("finalize_with_magic_version");
+
+        assert!(out.starts_with(&[0x73, 0x76, 0x73, 0x64, 1]));
+        let body = &out[5..];
+        assert_eq!(
+            body,
+            &[
+                0x19, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x00, 0x00, 0xaa, 0x02, 0x01, 0x04, 0x03, 0x11,
+                0x00, 0x00, 0x00, 0x0d, 0x0c, 0x0b, 0x0a, 0x04, 0x03, 0x02, 0x01,
+            ]
+        );
+    }
+
+    #[test]
+    fn finalize_with_magic_version_uses_config_magic_and_version() {
+        let config = Config::builder()
+            .magic([0xab, 0xcd, 0xef, 0x12])
+            .version(42)
+            .build();
+        let mut encoder = Encoder::new(config);
+        let x: u8 = 0xff;
+        x.encode_field::<false>(&mut encoder);
+
+        let mut out = Vec::new();
+        encoder
+            .finalize_with_magic_version(&mut out)
+            .expect("finalize_with_magic_version");
+
+        assert_eq!(out[0..5], [0xab, 0xcd, 0xef, 0x12, 42]);
+    }
 }
