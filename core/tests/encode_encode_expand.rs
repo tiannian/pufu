@@ -157,7 +157,8 @@ impl Decode for EncodeEncodeExpandOuter {
     }
 }
 
-fn main() -> Result<(), CodecError> {
+#[test]
+fn encode_encode_expand_roundtrip_nested() -> Result<(), CodecError> {
     let inner = EncodeEncodeExpand {
         fixed_a: 0x0102_0304,
         fixed_b: 0x0506,
@@ -175,6 +176,20 @@ fn main() -> Result<(), CodecError> {
         suffix: vec![0x0f, 0xee, 0xdd],
     };
 
+    let inner_encoded = value.inner.encode();
+    let inner_decoded = EncodeEncodeExpand::decode(&inner_encoded)?;
+    assert_eq!(inner_decoded.fixed_a, value.inner.fixed_a);
+    assert_eq!(inner_decoded.fixed_b, value.inner.fixed_b);
+    assert_eq!(inner_decoded.var1_a, value.inner.var1_a);
+    assert_eq!(inner_decoded.var1_c, value.inner.var1_c.as_slice());
+    assert_eq!(inner_decoded.fixed_c, value.inner.fixed_c);
+    assert_eq!(inner_decoded.var1_b, value.inner.var1_b);
+    assert_eq!(inner_decoded.fixed_d, value.inner.fixed_d);
+    assert_eq!(inner_decoded.var2.len(), value.inner.var2.len());
+    for (decoded_item, expected) in inner_decoded.var2.iter().zip(value.inner.var2.iter()) {
+        assert_eq!(*decoded_item, expected.as_slice());
+    }
+
     let encoded = value.encode();
     let decoded = EncodeEncodeExpandOuter::decode(&encoded)?;
 
@@ -191,7 +206,6 @@ fn main() -> Result<(), CodecError> {
         assert_eq!(*decoded_item, expected.as_slice());
     }
     assert_eq!(decoded.suffix, value.suffix.as_slice());
-    println!("decoded ok: {decoded:?}");
 
     Ok(())
 }

@@ -6,7 +6,3 @@ description = "Core library for pufu"
 
 [dependencies]
 pufu-macros = { path = "../macros" }
-
-[[example]]
-name = "encode_encode_expand"
-path = "examples/encode_encode_expand.rs"
