@@ -52,3 +52,16 @@ where
         items.try_into().map_err(|_| CodecError::InvalidLength)
     }
 }
+
+impl<T0, T1> FixedDecode for (T0, T1)
+where
+    T0: FixedDecode,
+    T1: FixedDecode,
+{
+    const LENGTH: usize = T0::LENGTH + T1::LENGTH;
+
+    fn decode(bytes: &[u8], endian: Endian) -> Result<Self, CodecError> {
+        let (t0, t1) = bytes.split_at(T0::LENGTH);
+        Ok((T0::decode(t0, endian)?, T1::decode(t1, endian)?))
+    }
+}

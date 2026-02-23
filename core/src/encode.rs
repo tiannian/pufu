@@ -53,6 +53,16 @@ where
     }
 }
 
+impl<T0, T1> Encode for (T0, T1)
+where
+    T0: DataType,
+    T1: DataType,
+{
+    fn encode_field<const IS_LAST_VAR: bool>(&self, e: &mut Encoder) {
+        self.push_fixed_data(&mut e.fixed, &e.config.endian);
+    }
+}
+
 impl<T> Encode for Vec<T>
 where
     T: DataType,

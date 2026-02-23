@@ -137,8 +137,8 @@ where
         decoder: &mut Decoder<'a>,
     ) -> Result<Self::View<'a>, CodecError> {
         let _ = IS_LAST_VAR;
-        let bytes = decoder.next_fixed_bytes((T0::LENGTH + T1::LENGTH) as u32)?;
-        let (t0_bytes, t1_bytes) = bytes.split_at(T0::LENGTH);
+        let t0_bytes = decoder.next_fixed_bytes(T0::LENGTH as u32)?;
+        let t1_bytes = decoder.next_fixed_bytes(T1::LENGTH as u32)?;
         Ok((
             T0::decode(t0_bytes, decoder.config().endian)?,
             T1::decode(t1_bytes, decoder.config().endian)?,
