@@ -6,5 +6,8 @@ description = "Core for the pufu in-memory serialization/deserialization library
 license.workspace = true
 readme = "../README.md"
 
+[dependencies]
+thiserror = "2.0"
+
 [dev-dependencies]
 hex = "0.4"

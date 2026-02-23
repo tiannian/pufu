@@ -1,12 +1,10 @@
-//! Config for binary serialization protocol (see specs/0017-config.md).
-
 use crate::Endian;
 
 /// Default magic bytes (e.g. b"svsd").
 pub const DEFAULT_MAGIC: [u8; 4] = [0x73, 0x76, 0x73, 0x64];
 
 /// Config carrying magic, version, and endianness for encode/decode.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Config {
     /// Four-byte magic identifier at the start of the payload (serialized).
     pub magic: [u8; 4],

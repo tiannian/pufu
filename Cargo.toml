@@ -2,8 +2,8 @@
 resolver = "2"
 members = [
     "core",
-    "macros",
-    "pufu",
+    # "macros",
+    # "pufu",
 ]
 
 [workspace.package]

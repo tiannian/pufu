@@ -1,4 +1,8 @@
-//! pufu-core - Core library for pufu
+mod endian;
+pub use endian::*;
+
+mod error;
+pub use error::*;
 
 mod encode;
 pub use encode::*;
@@ -6,34 +10,17 @@ pub use encode::*;
 mod decode;
 pub use decode::*;
 
-mod fixed_decode;
-pub use fixed_decode::FixedDecode;
+mod decoder;
+pub use decoder::*;
 
 mod encoder;
-pub use encoder::Encoder;
+pub use encoder::*;
 
-mod decoder;
-pub use decoder::Decoder;
-
-mod codec;
-pub use codec::CodecError;
+mod type_wapper;
+pub use type_wapper::*;
 
 mod config;
-pub use config::{Config, ConfigBuilder};
+pub use config::*;
 
-mod data_type;
-pub use data_type::*;
-
-/// Endianness used when encoding/decoding fixed-width values.
-///
-/// **Not serialized**: Endian is never written to or read from the wire. It is only used
-/// at encode/decode time to control the byte order of multi-byte header and VarEntry fields.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Endian {
-    /// Little-endian byte order.
-    Little,
-    /// Big-endian byte order.
-    Big,
-    /// Native endianness of the host (encoded as little-endian today).
-    Native,
-}
+mod marker;
+pub use marker::*;
