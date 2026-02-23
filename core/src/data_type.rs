@@ -104,6 +104,34 @@ where
     }
 }
 
+impl<T0, T1> DataType for (T0, T1)
+where
+    T0: DataType,
+    T1: DataType,
+{
+    const MODE: DataMode = DataMode::Fixed;
+    const LENGTH: usize = T0::LENGTH + T1::LENGTH;
+
+    fn push_fixed_data(&self, encoder_fixed: &mut Vec<u8>, endian: &Endian) {
+        if T0::MODE != DataMode::Fixed || T1::MODE != DataMode::Fixed {
+            panic!("fixed tuples require fixed data types");
+        }
+        let (t0, t1) = self;
+        t0.push_fixed_data(encoder_fixed, endian);
+        t1.push_fixed_data(encoder_fixed, endian);
+    }
+
+    fn push_var1_data(&self, var_length: &mut Vec<u32>, data: &mut Vec<u8>, endian: &Endian) {
+        if T0::MODE != DataMode::Fixed || T1::MODE != DataMode::Fixed {
+            panic!("fixed tuples require fixed data types");
+        }
+        let (t0, t1) = self;
+        t0.push_fixed_data(data, endian);
+        t1.push_fixed_data(data, endian);
+        var_length.push((T0::LENGTH + T1::LENGTH) as u32);
+    }
+}
+
 impl<T> DataType for Vec<T>
 where
     T: DataType,

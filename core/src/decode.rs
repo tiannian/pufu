@@ -59,6 +59,13 @@ impl_not_u8_for_primitive!(u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, 
 
 impl<T, const N: usize> NotU8 for [T; N] where T: FixedDecode {}
 
+impl<T0, T1> NotU8 for (T0, T1)
+where
+    T0: FixedDecode,
+    T1: FixedDecode,
+{
+}
+
 macro_rules! impl_field_decode_for_fixed_primitive {
     ($($t:ty),* $(,)?) => {
         $(
@@ -112,6 +119,30 @@ where
         let bytes = decoder.next_fixed_bytes(len)?;
         let items = decode_fixed_slice::<T>(bytes, decoder.config().endian)?;
         items.try_into().map_err(|_| CodecError::InvalidLength)
+    }
+}
+
+impl<T0, T1> Decode for (T0, T1)
+where
+    T0: FixedDecode + NotU8 + 'static,
+    T1: FixedDecode + NotU8 + 'static,
+{
+    type View<'a>
+        = (T0, T1)
+    where
+        T0: 'a,
+        T1: 'a;
+
+    fn decode_field<'a, const IS_LAST_VAR: bool>(
+        decoder: &mut Decoder<'a>,
+    ) -> Result<Self::View<'a>, CodecError> {
+        let _ = IS_LAST_VAR;
+        let bytes = decoder.next_fixed_bytes((T0::LENGTH + T1::LENGTH) as u32)?;
+        let (t0_bytes, t1_bytes) = bytes.split_at(T0::LENGTH);
+        Ok((
+            T0::decode(t0_bytes, decoder.config().endian)?,
+            T1::decode(t1_bytes, decoder.config().endian)?,
+        ))
     }
 }
 
@@ -325,5 +356,73 @@ mod tests {
         assert_eq!(decoded_a, a);
         assert_eq!(decoded_b, b);
         assert_eq!(decoded_c, c);
+    }
+
+    #[test]
+    fn decode_fixed_tuple_roundtrip() {
+        let mut encoder = Encoder::new(Config::default());
+        let pair: (u16, u32) = (0x0102, 0x03040506);
+        pair.encode_field::<true>(&mut encoder);
+
+        let mut out = Vec::new();
+        encoder.finalize(&mut out).expect("finalize");
+        let mut decoder = Decoder::new(&out, Config::default()).expect("decoder");
+        let decoded = <(u16, u32)>::decode_field::<true>(&mut decoder).expect("tuple");
+        assert_eq!(decoded, pair);
+    }
+
+    #[test]
+    fn decode_fixed_array_ref_and_mut_ref_roundtrip() {
+        let mut encoder = Encoder::new(Config::default());
+        let arr: [u16; 2] = [0x0a0b, 0x0c0d];
+        let arr_ref: &[u16; 2] = &arr;
+        arr_ref.encode_field::<false>(&mut encoder);
+
+        let mut out = Vec::new();
+        encoder.finalize(&mut out).expect("finalize");
+        let mut decoder = Decoder::new(&out, Config::default()).expect("decoder");
+        let decoded = <[u16; 2]>::decode_field::<false>(&mut decoder).expect("array");
+        assert_eq!(decoded, arr);
+
+        let mut arr_mut: [u16; 2] = [0x1112, 0x1314];
+        let mut encoder2 = Encoder::new(Config::default());
+        (&mut arr_mut).encode_field::<true>(&mut encoder2);
+        let mut out2 = Vec::new();
+        encoder2.finalize(&mut out2).expect("finalize");
+        let mut decoder2 = Decoder::new(&out2, Config::default()).expect("decoder");
+        let decoded2 = <[u16; 2]>::decode_field::<true>(&mut decoder2).expect("array");
+        assert_eq!(decoded2, arr_mut);
+    }
+
+    #[test]
+    fn decode_var1_vec_ref_and_slice_roundtrip() {
+        let mut encoder = Encoder::new(Config::default());
+        let vec_data: Vec<u8> = vec![0x11, 0x22, 0x33];
+        let vec_ref: &Vec<u8> = &vec_data;
+        vec_ref.encode_field::<true>(&mut encoder);
+
+        let mut out = Vec::new();
+        encoder.finalize(&mut out).expect("finalize");
+        let mut decoder = Decoder::new(&out, Config::default()).expect("decoder");
+        let decoded = Vec::<u8>::decode_field::<true>(&mut decoder).expect("vec");
+        assert_eq!(decoded, vec_data.as_slice());
+
+        let mut vec_mut: Vec<u16> = vec![0x0102, 0x0304];
+        let mut encoder2 = Encoder::new(Config::default());
+        (&mut vec_mut).encode_field::<true>(&mut encoder2);
+        let mut out2 = Vec::new();
+        encoder2.finalize(&mut out2).expect("finalize");
+        let mut decoder2 = Decoder::new(&out2, Config::default()).expect("decoder");
+        let decoded2 = Vec::<u16>::decode_field::<true>(&mut decoder2).expect("vec");
+        assert_eq!(decoded2, vec_mut);
+
+        let slice: &[u16] = &[0x0506, 0x0708][..];
+        let mut encoder3 = Encoder::new(Config::default());
+        slice.encode_field::<true>(&mut encoder3);
+        let mut out3 = Vec::new();
+        encoder3.finalize(&mut out3).expect("finalize");
+        let mut decoder3 = Decoder::new(&out3, Config::default()).expect("decoder");
+        let decoded3 = Vec::<u16>::decode_field::<true>(&mut decoder3).expect("vec");
+        assert_eq!(decoded3, slice);
     }
 }
